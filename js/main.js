@@ -41,6 +41,19 @@ const MEMES = [
   { f: 'matrix',        cap: 'THE GREEN SOURCE',     tall: true },
 ];
 
+/* ─────────────────────────────────────────────────────────────
+   THE CHANNELS — drop an mp4 in /assets/video, a still in
+   /assets/posters, add a line here. That's the whole procedure.
+   ───────────────────────────────────────────────────────────── */
+const CHANNELS = [
+  { ch: '88', name: 'THE ORIGINAL', tag: 'ARCHIVO 1988', file: 'intro.mp4',              poster: 'poster-intro.jpg'  },
+  { ch: '89', name: 'THE ARENA',    tag: 'EMBLEM',       file: 'arena4_emblem.mp4',      poster: 'poster-arena.jpg'  },
+  { ch: '90', name: 'LASER GRID',   tag: 'HEIST II',     file: 'heist2_lasers.mp4',      poster: 'poster-lasers.jpg' },
+  { ch: '91', name: 'THE VAULT',    tag: 'HEIST III',    file: 'heist3_alarm.mp4',       poster: 'poster-vault.jpg'  },
+  { ch: '92', name: 'THE SOURCE',   tag: 'GREEN CODE',   file: 'TOAD_matrix_4_web.mp4',  poster: 'poster-source.jpg' },
+  { ch: '93', name: 'GOLDEN LIGHT', tag: 'AFTERMATH II', file: 'aftermath2_goldenlight.mp4', poster: 'poster-march.jpg' },
+];
+
 const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -626,13 +639,83 @@ document.addEventListener('click', e => {
 (function tv() {
   const tv = $('#tv'), vid = $('#tapeVideo'), play = $('#tapePlay');
   const time = $('#tapeTime'), kSound = $('#knobSound'), kFull = $('#knobFull');
+  const chEl = $('#tapeCh'), nameEl = $('#tapeName'), list = $('#channels');
+  const staticCv = $('#tvStatic');
   if (!tv) return;
 
+  let current = 0;
   const fmt = s => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+  /* ── build the dial ── */
+  CHANNELS.forEach((c, i) => {
+    const b = document.createElement('button');
+    b.className = 'chan' + (i === 0 ? ' is-live' : '');
+    b.type = 'button';
+    b.setAttribute('role', 'tab');
+    b.setAttribute('aria-selected', String(i === 0));
+    b.innerHTML =
+      `<span class="chan__thumb"><img src="/assets/posters/${c.poster}" alt="" loading="lazy" decoding="async">` +
+      `<span class="chan__num">CH ${c.ch}</span></span>` +
+      `<span class="chan__meta"><b>${c.name}</b><span>${c.tag}</span></span>`;
+    b.addEventListener('click', () => tune(i));
+    list.appendChild(b);
+  });
+  const buttons = () => [...list.children];
+
+  /* ── static burst between channels ── */
+  const sctx = staticCv.getContext('2d', { alpha: false });
+  let staticRaf = null;
+  function staticOn() {
+    staticCv.width  = Math.max(1, Math.round(staticCv.offsetWidth  / 4));
+    staticCv.height = Math.max(1, Math.round(staticCv.offsetHeight / 4));
+    const draw = () => {
+      const { width: w, height: h } = staticCv;
+      const img = sctx.createImageData(w, h), d = img.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const v = (Math.random() * 255) | 0;
+        d[i] = v; d[i + 1] = v; d[i + 2] = v; d[i + 3] = 255;
+      }
+      sctx.putImageData(img, 0, 0);
+      staticRaf = requestAnimationFrame(draw);
+    };
+    if (!REDUCED) draw();
+  }
+  function staticOff() { cancelAnimationFrame(staticRaf); staticRaf = null; }
+
+  /* ── tune to a channel ── */
+  function tune(i, autoplay = true) {
+    const c = CHANNELS[i];
+    const same = i === current;
+    current = i;
+
+    buttons().forEach((b, n) => {
+      b.classList.toggle('is-live', n === i);
+      b.setAttribute('aria-selected', String(n === i));
+    });
+    chEl.textContent = `CH ${c.ch}`;
+    nameEl.textContent = c.name;
+
+    if (!same || !vid.src) {
+      tv.classList.add('is-tuning');
+      staticOn();
+      Sound.blip(180 + i * 40, 0.12, 0.05);
+      setTimeout(() => {
+        vid.poster = `/assets/posters/${c.poster}`;
+        vid.src = `/assets/video/${c.file}`;
+        vid.load();
+        tv.classList.remove('is-tuning');
+        staticOff();
+        if (autoplay) start();
+      }, 420);
+    } else if (autoplay) {
+      start();
+    }
+  }
 
   function start() {
     tv.classList.add('is-switching');
     setTimeout(() => tv.classList.remove('is-switching'), 420);
+    if (!vid.src) { tune(current); return; }
     vid.muted = false;
     vid.play().then(() => {
       tv.classList.add('is-playing');
@@ -649,7 +732,8 @@ document.addEventListener('click', e => {
     else { vid.pause(); tv.classList.remove('is-playing'); }
   });
   vid.addEventListener('timeupdate', () => { time.textContent = fmt(vid.currentTime); });
-  vid.addEventListener('ended', () => { tv.classList.remove('is-playing'); vid.currentTime = 0; });
+  // when a tape runs out, roll straight into the next channel
+  vid.addEventListener('ended', () => tune((current + 1) % CHANNELS.length));
 
   kSound.addEventListener('click', () => {
     vid.muted = !vid.muted;
@@ -676,11 +760,16 @@ document.addEventListener('click', e => {
    16. LORE RAIL — drag to scrub, line fills with progress
    ══════════════════════════════════════════════════════════════ */
 (function lore() {
-  const track = $('#loreTrack'), prog = $('#loreProgress');
+  const track = $('#loreTrack');
   if (!track) return;
-  let down = false, sx = 0, sl = 0, moved = 0;
+  const rail  = $('#loreRailBar'), thumb = $('#loreThumb'), fill = $('#loreFill');
+  const bLeft = $('#loreLeft'),    bRight = $('#loreRight');
+  const maxScroll = () => Math.max(0, track.scrollWidth - track.clientWidth);
 
+  /* ── grab the cards themselves ── */
+  let down = false, sx = 0, sl = 0, moved = 0;
   track.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
     down = true; moved = 0;
     sx = e.clientX; sl = track.scrollLeft;
     track.classList.add('is-dragging');
@@ -702,13 +791,93 @@ document.addEventListener('click', e => {
   track.addEventListener('pointercancel', up);
   track.addEventListener('click', e => { if (moved > 6) { e.preventDefault(); e.stopPropagation(); } }, true);
 
-  const upd = () => {
-    const max = track.scrollWidth - track.clientWidth;
-    prog.style.width = (max > 0 ? (track.scrollLeft / max) * 100 : 0) + '%';
+  /* ── wheel over the rail scrolls the rail, not the page ──
+     …until you hit an end, then the page takes over again so
+     nobody gets trapped inside the timeline. ── */
+  track.addEventListener('wheel', e => {
+    const max = maxScroll();
+    if (!max) return;
+    // horizontal intent (trackpad) is already handled natively
+    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+    const step = e.deltaY * (e.deltaMode === 1 ? 24 : 1);
+    const next = track.scrollLeft + step;
+    const atEdge = (step < 0 && track.scrollLeft <= 0) || (step > 0 && track.scrollLeft >= max - 1);
+    if (atEdge) return;                 // let the page scroll on
+    e.preventDefault();
+    track.scrollLeft = clamp(next, 0, max);
+  }, { passive: false });
+
+  /* ── the scrubber ── */
+  function sync() {
+    const max = maxScroll();
+    const ratio = track.clientWidth / track.scrollWidth;
+    const railW = rail.clientWidth;
+    const tw = clamp(Math.round(railW * ratio), 56, railW);
+    const p = max > 0 ? track.scrollLeft / max : 0;
+    thumb.style.width = tw + 'px';
+    thumb.style.transform = `translateX(${(railW - tw) * p}px)`;
+    fill.style.width = ((railW - tw) * p) + 'px';   // track already travelled
+    thumb.setAttribute('aria-valuenow', Math.round(p * 100));
+    bLeft.disabled  = track.scrollLeft <= 1;
+    bRight.disabled = track.scrollLeft >= max - 1;
+  }
+
+  let scrubbing = false, grabX = 0, grabLeft = 0;
+  const seekTo = clientX => {
+    const r = rail.getBoundingClientRect();
+    const tw = thumb.offsetWidth;
+    const p = clamp((clientX - r.left - tw / 2) / (r.width - tw), 0, 1);
+    track.scrollLeft = p * maxScroll();
   };
-  upd();
-  track.addEventListener('scroll', upd, { passive: true });
-  addEventListener('resize', upd);
+
+  thumb.addEventListener('pointerdown', e => {
+    e.stopPropagation();
+    scrubbing = true; grabX = e.clientX; grabLeft = track.scrollLeft;
+    thumb.classList.add('is-grabbing');
+    thumb.setPointerCapture(e.pointerId);
+  });
+  thumb.addEventListener('pointermove', e => {
+    if (!scrubbing) return;
+    const r = rail.getBoundingClientRect();
+    const travel = r.width - thumb.offsetWidth;
+    if (travel <= 0) return;
+    track.scrollLeft = clamp(grabLeft + ((e.clientX - grabX) / travel) * maxScroll(), 0, maxScroll());
+  });
+  const stopScrub = e => {
+    if (!scrubbing) return;
+    scrubbing = false;
+    thumb.classList.remove('is-grabbing');
+    try { thumb.releasePointerCapture(e.pointerId); } catch {}
+  };
+  thumb.addEventListener('pointerup', stopScrub);
+  thumb.addEventListener('pointercancel', stopScrub);
+
+  rail.addEventListener('pointerdown', e => {
+    if (e.target === thumb) return;
+    seekTo(e.clientX);
+    Sound.blip(620, 0.05, 0.03);
+  });
+
+  thumb.addEventListener('keydown', e => {
+    const card = track.querySelector('.lore-card');
+    const stepW = card ? card.offsetWidth + 20 : 300;
+    if (e.key === 'ArrowLeft')  { e.preventDefault(); track.scrollBy({ left: -stepW, behavior: 'smooth' }); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); track.scrollBy({ left:  stepW, behavior: 'smooth' }); }
+  });
+
+  const nudge = dir => {
+    const card = track.querySelector('.lore-card');
+    const stepW = card ? card.offsetWidth + 20 : 300;
+    track.scrollBy({ left: dir * stepW, behavior: REDUCED ? 'auto' : 'smooth' });
+    Sound.blip(dir > 0 ? 760 : 520, 0.05, 0.035);
+  };
+  bLeft.addEventListener('click', () => nudge(-1));
+  bRight.addEventListener('click', () => nudge(1));
+
+  sync();
+  track.addEventListener('scroll', sync, { passive: true });
+  addEventListener('resize', sync);
+  addEventListener('load', sync);
 })();
 
 /* ══════════════════════════════════════════════════════════════

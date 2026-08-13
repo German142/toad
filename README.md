@@ -18,8 +18,9 @@ tilted conveyor belts.
 ```
 index.html            the whole page
 css/style.css         all styling
-js/main.js            all behaviour — CONFIG lives at the top
-assets/video/         intro.mp4 (hero background + the tape)
+js/main.js            all behaviour — CONFIG, CHANNELS and MEMES live at the top
+assets/video/         5 tapes; intro.mp4 also runs behind the hero
+assets/posters/       still frame for each tape, used as the video poster
 assets/memes/         20 memes, web-optimised
 assets/memes/thumb/   smaller versions used by the strips
 assets/brand/         logo + favicons
@@ -46,9 +47,9 @@ Leave `ca` as an empty string and the site gracefully switches to a "dropping so
 
 ### Swapping the logo
 
-`assets/brand/logo.png` (plus `icon-32`, `icon-180`, `icon-512`) is currently a crop taken
-from the meme set. Drop the official logo PNG in at those four sizes to replace it —
-no code changes needed.
+The source of truth is `assets/brand/logo2.jpg`. `logo.png`, `icon-32.png`, `icon-180.png`
+and `icon-512.png` are square exports of it. Replace those four and the nav, footer, boot
+screen and browser tab all follow — no code changes needed.
 
 ### Adding memes
 
@@ -62,14 +63,31 @@ no code changes needed.
 `tall: true` switches that tile to a 3:4 portrait crop. Everything else — the strips,
 the lightbox, the counter, the shuffle — updates itself.
 
+### Adding a channel
+
+Drop an `.mp4` in `assets/video/` and a still frame in `assets/posters/`, then add a line
+to the `CHANNELS` array in `js/main.js`:
+
+```js
+{ ch: '93', name: 'CHANNEL NAME', tag: 'SUBTITLE', file: 'clip.mp4', poster: 'poster-clip.jpg' },
+```
+
+The dial, the on-screen display and the auto-advance all read from that array. Videos use
+`preload="none"` and only load when their channel is selected, so extra tapes cost nothing
+until someone asks for them.
+
 ## Features
 
 - **CRT boot sequence** — animated static, colour bars, channel tuning, power-off collapse
 - **Video hero** — `intro.mp4` full-bleed behind the wordmark, with scanlines, chromatic
   drift, live timecode and a REC indicator
-- **The tape** — a CSS-built television set with working volume and fullscreen knobs;
-  the hero video pauses automatically so only one soundtrack plays at a time
-- **Lore rail** — drag-to-scrub timeline with a progress line
+- **The tapes** — a CSS-built television set with working volume and fullscreen knobs.
+  Five channels on a dial below it; switching one runs a real static burst before the
+  picture locks, and a finished tape rolls straight into the next channel. The hero
+  video pauses automatically so only one soundtrack plays at a time
+- **Lore rail** — a horizontal timeline you can drag, swipe, arrow through, or scroll with
+  the mouse wheel while hovering; a VHS-style scrubber underneath tracks the position and
+  hands the wheel back to the page once you reach either end
 - **Meme archive** — three tilted conveyor belts, hover-to-slow, click for a keyboard-navigable
   lightbox, plus a shuffle button
 - **Synthesised croak** — button clicks make a frog noise built live with the Web Audio API,
