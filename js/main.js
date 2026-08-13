@@ -1,0 +1,795 @@
+/* ══════════════════════════════════════════════════════════════
+   $TOAD — CANAL 88
+   ══════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────────────
+   CONFIG — edit these four values and the whole site updates.
+   ⚠ ALWAYS re-verify the contract address before you deploy.
+   ───────────────────────────────────────────────────────────── */
+const CONFIG = {
+  ca:        'A13oRB9FFaiUjfi6LdCg6p9ka1u8SfGkUFs4SKvPpump',
+  x:         'https://x.com/eltoadpepe',
+  community: 'https://x.com/i/communities/2030839209980989725',
+};
+CONFIG.buy   = CONFIG.ca ? `https://pump.fun/coin/${CONFIG.ca}`            : 'https://pump.fun';
+CONFIG.chart = CONFIG.ca ? `https://dexscreener.com/solana/${CONFIG.ca}`   : 'https://dexscreener.com/solana';
+CONFIG.scan  = CONFIG.ca ? `https://solscan.io/token/${CONFIG.ca}`         : 'https://solscan.io';
+
+/* ─────────────────────────────────────────────────────────────
+   THE ARCHIVE
+   ───────────────────────────────────────────────────────────── */
+const MEMES = [
+  { f: 'chains',        cap: 'BREAKING THE CHAINS' },
+  { f: 'sniper',        cap: 'SNIPER SEASON' },
+  { f: 'street',        cap: 'STREET LEGEND',        tall: true },
+  { f: 'toadmart',      cap: 'TOAD MART',            tall: true },
+  { f: 'blade',         cap: 'HOLDER OF THE BLADE' },
+  { f: 'solangeles',    cap: 'SOLANGELES' },
+  { f: 'deepliquidity', cap: 'DEEP LIQUIDITY' },
+  { f: 'greenwall',     cap: 'GREEN CANDLE INCOMING' },
+  { f: 'astronaut',     cap: 'ALREADY PAST THE MOON', tall: true },
+  { f: 'greenpill',     cap: 'TAKE THE GREEN PILL' },
+  { f: 'beach',         cap: 'GENERATIONAL VACATION' },
+  { f: 'mirror',        cap: 'WE SEE THE VISION' },
+  { f: 'cashfloor',     cap: '1988 MONEY' },
+  { f: 'jetski',        cap: 'FULL SEND' },
+  { f: 'torch',         cap: 'PASSING THE TORCH' },
+  { f: 'oldmoney',      cap: 'OLD MONEY TOAD' },
+  { f: 'timekeeper',    cap: 'WE WERE EARLY',        tall: true },
+  { f: 'tophat',        cap: 'RESPECTFULLY, NO' },
+  { f: 'cheers',        cap: 'CHEERS TO 38 YEARS' },
+  { f: 'matrix',        cap: 'THE GREEN SOURCE',     tall: true },
+];
+
+const $  = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const COARSE  = matchMedia('(pointer: coarse)').matches;
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const rand  = (a, b) => a + Math.random() * (b - a);
+
+/* ══════════════════════════════════════════════════════════════
+   1. SOUND — a synthesised croak. No audio files needed.
+   ══════════════════════════════════════════════════════════════ */
+const Sound = (() => {
+  let ctx = null, muted = false;
+  const wake = () => {
+    if (!ctx) { try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch { return null; } }
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  };
+  const croak = () => {
+    const c = wake(); if (!c || muted) return;
+    const t = c.currentTime;
+    const osc = c.createOscillator();
+    const lfo = c.createOscillator();
+    const lfoGain = c.createGain();
+    const filt = c.createBiquadFilter();
+    const gain = c.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(320, t);
+    osc.frequency.exponentialRampToValueAtTime(96, t + 0.16);
+
+    lfo.type = 'square';
+    lfo.frequency.setValueAtTime(38, t);
+    lfoGain.gain.setValueAtTime(70, t);
+    lfo.connect(lfoGain).connect(osc.frequency);
+
+    filt.type = 'lowpass';
+    filt.frequency.setValueAtTime(1500, t);
+    filt.frequency.exponentialRampToValueAtTime(420, t + 0.18);
+    filt.Q.value = 6;
+
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.16, t + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+
+    osc.connect(filt).connect(gain).connect(c.destination);
+    osc.start(t); lfo.start(t);
+    osc.stop(t + 0.22); lfo.stop(t + 0.22);
+  };
+  const blip = (freq = 880, dur = 0.07, vol = 0.05) => {
+    const c = wake(); if (!c || muted) return;
+    const t = c.currentTime;
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = 'square'; o.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(c.destination);
+    o.start(t); o.stop(t + dur + 0.02);
+  };
+  return { croak, blip, wake, toggle: () => (muted = !muted), get muted() { return muted; } };
+})();
+
+/* ══════════════════════════════════════════════════════════════
+   2. TOAST
+   ══════════════════════════════════════════════════════════════ */
+const toastEl = $('#toast');
+let toastTimer;
+function toast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add('is-on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('is-on'), 2400);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   3. BOOT SEQUENCE
+   ══════════════════════════════════════════════════════════════ */
+(function boot() {
+  const el = $('#boot');
+  const cv = $('#bootStatic');
+  const line = $('#bootLine');
+  const btn = $('#bootBtn');
+  const ctx = cv.getContext('2d', { alpha: false });
+  let raf, alive = true;
+
+  document.documentElement.classList.add('is-locked');
+
+  function size() {
+    cv.width  = Math.max(1, Math.floor(innerWidth  / 3));
+    cv.height = Math.max(1, Math.floor(innerHeight / 3));
+  }
+  size();
+  addEventListener('resize', size);
+
+  function noise() {
+    if (!alive) return;
+    const { width: w, height: h } = cv;
+    const img = ctx.createImageData(w, h);
+    const d = img.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const v = (Math.random() * 255) | 0;
+      d[i] = v; d[i + 1] = v; d[i + 2] = v; d[i + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    raf = setTimeout(() => requestAnimationFrame(noise), 55);
+  }
+  if (!REDUCED) noise(); else ctx.fillStyle = '#000', ctx.fillRect(0, 0, cv.width, cv.height);
+
+  const lines = [
+    'TUNING SIGNAL…',
+    'CANAL 88 — ARCHIVO NACIONAL',
+    'TAPE FOUND: EL TOAD PEPE, 1988',
+    'RESTORING COLOUR…',
+    'SIGNAL LOCKED ✓',
+  ];
+  let i = 0;
+  const seq = setInterval(() => {
+    i++;
+    if (i >= lines.length) { clearInterval(seq); return; }
+    line.textContent = lines[i];
+    Sound.blip(560 + i * 90, 0.05, 0.03);
+  }, 620);
+
+  function enter() {
+    btn.removeEventListener('click', enter);
+    clearInterval(seq);
+    Sound.wake();
+    Sound.croak();
+    el.classList.add('is-off');
+    setTimeout(() => {
+      el.classList.add('is-gone');
+      document.documentElement.classList.remove('is-locked');
+      alive = false; clearTimeout(raf);
+      document.body.classList.add('is-live');
+      startHeroVideo();
+      revealHero();
+      setTimeout(() => el.remove(), 600);
+    }, 560);
+  }
+  btn.addEventListener('click', enter);
+
+  // failsafe: never trap anyone behind the curtain
+  setTimeout(() => { if (document.body.contains(el) && !el.classList.contains('is-off')) line.textContent = 'SIGNAL LOCKED ✓'; }, 4200);
+})();
+
+/* ══════════════════════════════════════════════════════════════
+   4. HERO
+   ══════════════════════════════════════════════════════════════ */
+const heroVideo = $('#heroVideo');
+function startHeroVideo() {
+  if (!heroVideo) return;
+  heroVideo.play().catch(() => {});
+}
+function revealHero() {
+  const k = $('.hero__kicker');
+  const title = $('.wordmark');
+  if (title) { title.classList.add('is-glitch'); setTimeout(() => title.classList.remove('is-glitch'), 320); }
+  if (k) k.style.animation = 'none';
+}
+
+/* split kicker into per-letter spans for the stagger */
+(function splitKicker() {
+  const el = $('[data-split]');
+  if (!el || REDUCED) return;
+  const text = el.textContent.trim();
+  el.textContent = '';
+  [...text].forEach((ch, i) => {
+    const s = document.createElement('span');
+    s.textContent = ch === ' ' ? ' ' : ch;
+    s.style.opacity = '0';
+    s.style.transform = 'translateY(14px)';
+    s.style.transition = `opacity .5s ease ${400 + i * 26}ms, transform .5s cubic-bezier(.22,1,.36,1) ${400 + i * 26}ms`;
+    el.appendChild(s);
+    requestAnimationFrame(() => requestAnimationFrame(() => { s.style.opacity = '1'; s.style.transform = 'none'; }));
+  });
+})();
+
+/* rolling timecode */
+(function timecode() {
+  const el = $('#timecode');
+  if (!el) return;
+  const t0 = performance.now();
+  const pad = n => String(n).padStart(2, '0');
+  setInterval(() => {
+    const ms = performance.now() - t0;
+    const f = Math.floor((ms % 1000) / 40);
+    const s = Math.floor(ms / 1000) % 60;
+    const m = Math.floor(ms / 60000) % 60;
+    el.textContent = `00:${pad(m)}:${pad(s)}:${pad(f)}`;
+  }, 60);
+})();
+
+/* random VHS glitch on the wordmark */
+if (!REDUCED) {
+  const wm = $('.wordmark');
+  setInterval(() => {
+    if (!wm || Math.random() > 0.35) return;
+    wm.classList.add('is-glitch');
+    setTimeout(() => wm.classList.remove('is-glitch'), 300);
+  }, 3600);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   5. SPORES — drifting swamp particles
+   ══════════════════════════════════════════════════════════════ */
+(function spores() {
+  const cv = $('#spores');
+  if (!cv || REDUCED) { if (cv) cv.style.display = 'none'; return; }
+  const ctx = cv.getContext('2d');
+  let w, h, parts = [], dpr = Math.min(devicePixelRatio || 1, 2);
+
+  function size() {
+    w = cv.width  = innerWidth  * dpr;
+    h = cv.height = innerHeight * dpr;
+    cv.style.width = innerWidth + 'px';
+    cv.style.height = innerHeight + 'px';
+    const n = clamp(Math.round(innerWidth / 22), 26, 80);
+    parts = Array.from({ length: n }, () => spawn());
+  }
+  function spawn(atBottom) {
+    return {
+      x: rand(0, w), y: atBottom ? h + rand(0, 60) : rand(0, h),
+      r: rand(0.7, 2.6) * dpr,
+      vy: -rand(0.08, 0.42) * dpr,
+      vx: rand(-0.14, 0.14) * dpr,
+      a: rand(0.15, 0.7),
+      p: rand(0, Math.PI * 2),
+      warm: Math.random() > 0.82,
+    };
+  }
+  function frame() {
+    ctx.clearRect(0, 0, w, h);
+    for (const p of parts) {
+      p.p += 0.014;
+      p.y += p.vy;
+      p.x += p.vx + Math.sin(p.p) * 0.22 * dpr;
+      if (p.y < -20) Object.assign(p, spawn(true));
+      const glow = (Math.sin(p.p * 1.7) + 1) / 2;
+      const alpha = p.a * (0.45 + glow * 0.55);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = p.warm
+        ? `rgba(245,197,24,${alpha})`
+        : `rgba(168,255,26,${alpha})`;
+      ctx.shadowBlur = 10 * dpr;
+      ctx.shadowColor = p.warm ? 'rgba(245,197,24,.7)' : 'rgba(168,255,26,.7)';
+      ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+    requestAnimationFrame(frame);
+  }
+  size();
+  addEventListener('resize', size);
+  frame();
+})();
+
+/* ══════════════════════════════════════════════════════════════
+   6. CURSOR + THE FLY
+   ══════════════════════════════════════════════════════════════ */
+if (!COARSE && !REDUCED) {
+  const cur = $('#cursor'), fly = $('#fly');
+  let mx = innerWidth / 2, my = innerHeight / 2;
+  let cx = mx, cy = my;
+  let fx = mx, fy = my, fvx = 0, fvy = 0, t = 0;
+
+  addEventListener('mousemove', e => {
+    mx = e.clientX; my = e.clientY;
+    cur.classList.add('is-on'); fly.classList.add('is-on');
+  }, { passive: true });
+
+  addEventListener('mouseleave', () => { cur.classList.remove('is-on'); fly.classList.remove('is-on'); });
+
+  const hot = 'a, button, .meme, [data-tilt], input';
+  document.addEventListener('mouseover', e => {
+    if (e.target.closest(hot)) cur.classList.add('is-hot');
+  });
+  document.addEventListener('mouseout', e => {
+    if (e.target.closest(hot)) cur.classList.remove('is-hot');
+  });
+
+  (function loop() {
+    cx += (mx - cx) * 0.22;
+    cy += (my - cy) * 0.22;
+    cur.style.transform = `translate(${cx}px, ${cy}px)` + (cur.classList.contains('is-hot') ? ' scale(1.55)' : '');
+
+    // the fly orbits the cursor, badly
+    t += 0.045;
+    const tx = mx + Math.cos(t * 1.7) * 46 + Math.sin(t * 0.6) * 20;
+    const ty = my + Math.sin(t * 2.3) * 38 + Math.cos(t * 0.9) * 16;
+    fvx += (tx - fx) * 0.055; fvy += (ty - fy) * 0.055;
+    fvx *= 0.82; fvy *= 0.82;
+    fx += fvx; fy += fvy;
+    fly.style.transform = `translate(${fx}px, ${fy}px)`;
+    requestAnimationFrame(loop);
+  })();
+
+  // cursor sits above the OS one
+  document.documentElement.style.cursor = 'none';
+}
+
+/* ══════════════════════════════════════════════════════════════
+   7. NAV
+   ══════════════════════════════════════════════════════════════ */
+(function nav() {
+  const nav = $('#nav'), burger = $('#burger'), links = $('#navLinks');
+
+  const onScroll = () => nav.classList.toggle('is-stuck', scrollY > 40);
+  onScroll();
+  addEventListener('scroll', onScroll, { passive: true });
+
+  burger.addEventListener('click', () => {
+    const open = links.classList.toggle('is-open');
+    burger.setAttribute('aria-expanded', String(open));
+    Sound.blip(open ? 720 : 480, 0.06, 0.04);
+  });
+  links.addEventListener('click', e => {
+    if (e.target.tagName === 'A') {
+      links.classList.remove('is-open');
+      burger.setAttribute('aria-expanded', 'false');
+    }
+  });
+
+  // active section highlight
+  const ids = $$('#navLinks a').map(a => a.getAttribute('href').slice(1));
+  const secs = ids.map(id => document.getElementById(id)).filter(Boolean);
+  const spy = new IntersectionObserver(entries => {
+    entries.forEach(en => {
+      if (!en.isIntersecting) return;
+      $$('#navLinks a').forEach(a => a.classList.toggle('is-active', a.getAttribute('href') === '#' + en.target.id));
+    });
+  }, { rootMargin: '-45% 0px -50% 0px' });
+  secs.forEach(s => spy.observe(s));
+})();
+
+/* ══════════════════════════════════════════════════════════════
+   8. TAPE PROGRESS BAR
+   ══════════════════════════════════════════════════════════════ */
+(function progress() {
+  const fill = $('#tapebarFill');
+  const upd = () => {
+    const max = document.documentElement.scrollHeight - innerHeight;
+    fill.style.width = (max > 0 ? (scrollY / max) * 100 : 0) + '%';
+  };
+  upd();
+  addEventListener('scroll', upd, { passive: true });
+  addEventListener('resize', upd);
+})();
+
+/* ══════════════════════════════════════════════════════════════
+   9. MARQUEES — RAF driven, seamless, hover-slow
+   ══════════════════════════════════════════════════════════════ */
+const marquees = [];
+function initMarquee(track) {
+  const speed = parseFloat(track.dataset.speed) || 40;
+  const dir   = parseFloat(track.dataset.dir) || 1;
+  const base  = [...track.children].map(n => n.cloneNode(true));
+  if (!base.length) return;
+
+  const fill = () => {
+    while (track.scrollWidth < track.parentElement.offsetWidth * 2.4 && track.children.length < 240) {
+      base.forEach(n => track.appendChild(n.cloneNode(true)));
+    }
+  };
+  fill();
+
+  const m = { track, speed, dir, x: 0, half: 0, factor: 1 };
+  m.measure = () => { m.half = track.scrollWidth / 2; };
+  m.measure();
+  track.addEventListener('mouseenter', () => (m.factor = 0.15));
+  track.addEventListener('mouseleave', () => (m.factor = 1));
+  marquees.push(m);
+  return m;
+}
+(function marqueeLoop() {
+  let last = performance.now();
+  function tick(now) {
+    const dt = Math.min((now - last) / 1000, 0.05);
+    last = now;
+    for (const m of marquees) {
+      if (!m.half) { m.measure(); continue; }
+      m.x -= m.speed * m.factor * m.dir * dt;
+      if (m.dir > 0 && m.x <= -m.half) m.x += m.half;
+      if (m.dir < 0 && m.x >= 0) m.x -= m.half;
+      m.track.style.transform = `translate3d(${m.x}px,0,0)`;
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+})();
+
+/* ══════════════════════════════════════════════════════════════
+   10. MEME STRIPS + LIGHTBOX
+   ══════════════════════════════════════════════════════════════ */
+let order = MEMES.map((_, i) => i);
+
+function buildStrips() {
+  const rows = [[], [], []];
+  order.forEach((idx, i) => rows[i % 3].push(idx));
+
+  $$('.strip__track').forEach((track, r) => {
+    track.innerHTML = '';
+    track.style.transform = 'translate3d(0,0,0)';
+    rows[r].forEach(idx => {
+      const m = MEMES[idx];
+      const fig = document.createElement('figure');
+      fig.className = 'meme' + (m.tall ? ' meme--tall' : '');
+      fig.dataset.idx = idx;
+      fig.innerHTML =
+        `<img src="/assets/memes/thumb/${m.f}.jpg" alt="${m.cap}" loading="lazy" decoding="async">` +
+        `<figcaption class="meme__cap">${m.cap}</figcaption>`;
+      track.appendChild(fig);
+    });
+  });
+
+  // drop only the strip marquees, then re-register them — the ticker
+  // and footer keep running untouched
+  for (let i = marquees.length - 1; i >= 0; i--) {
+    if (marquees[i].track.classList.contains('strip__track')) marquees.splice(i, 1);
+  }
+  $$('.strip__track').forEach(initMarquee);
+}
+
+$('#shuffleBtn')?.addEventListener('click', () => {
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  buildStrips();
+  Sound.croak();
+  toast('🎲 ARCHIVE RESHUFFLED');
+  glitch();
+});
+
+/* lightbox */
+const LB = {
+  el: $('#lightbox'), img: $('#lbImg'), cap: $('#lbCap'), idx: $('#lbIdx'), i: 0,
+  open(i) {
+    this.i = (i + MEMES.length) % MEMES.length;
+    const m = MEMES[this.i];
+    this.img.src = `/assets/memes/${m.f}.jpg`;
+    this.img.alt = m.cap;
+    this.cap.textContent = m.cap;
+    this.idx.textContent = `${String(this.i + 1).padStart(2, '0')} / ${MEMES.length}`;
+    this.el.classList.add('is-on');
+    document.documentElement.classList.add('is-locked');
+    Sound.blip(760, 0.05, 0.04);
+  },
+  close() {
+    this.el.classList.remove('is-on');
+    document.documentElement.classList.remove('is-locked');
+  },
+  step(d) { this.open(this.i + d); },
+};
+
+document.addEventListener('click', e => {
+  const meme = e.target.closest('.meme');
+  if (meme) { LB.open(+meme.dataset.idx); return; }
+});
+$('#lbClose').addEventListener('click', () => LB.close());
+$('#lbPrev').addEventListener('click', () => LB.step(-1));
+$('#lbNext').addEventListener('click', () => LB.step(1));
+LB.el.addEventListener('click', e => { if (e.target === LB.el || e.target.classList.contains('lb__figure')) LB.close(); });
+addEventListener('keydown', e => {
+  if (!LB.el.classList.contains('is-on')) return;
+  if (e.key === 'Escape') LB.close();
+  if (e.key === 'ArrowRight') LB.step(1);
+  if (e.key === 'ArrowLeft') LB.step(-1);
+});
+
+/* ══════════════════════════════════════════════════════════════
+   11. REVEAL ON SCROLL
+   ══════════════════════════════════════════════════════════════ */
+(function reveal() {
+  const items = $$('[data-reveal]');
+  if (REDUCED) { items.forEach(i => i.classList.add('is-in')); return; }
+  const io = new IntersectionObserver((entries, obs) => {
+    entries.forEach(en => {
+      if (!en.isIntersecting) return;
+      const sibs = [...(en.target.parentElement?.children || [])].filter(c => c.hasAttribute('data-reveal'));
+      en.target.style.setProperty('--d', Math.min(sibs.indexOf(en.target), 6) * 90 + 'ms');
+      en.target.classList.add('is-in');
+      obs.unobserve(en.target);
+    });
+  }, { rootMargin: '0px 0px -12% 0px', threshold: 0.08 });
+  items.forEach(i => io.observe(i));
+})();
+
+/* ══════════════════════════════════════════════════════════════
+   12. COUNTERS
+   ══════════════════════════════════════════════════════════════ */
+(function counters() {
+  const els = $$('[data-count]');
+  const io = new IntersectionObserver((entries, obs) => {
+    entries.forEach(en => {
+      if (!en.isIntersecting) return;
+      const el = en.target;
+      obs.unobserve(el);
+      const target = parseFloat(el.dataset.count);
+      if (el.hasAttribute('data-plain') || REDUCED) { el.textContent = target; return; }
+      const dur = 1500, t0 = performance.now();
+      (function step(now) {
+        const p = clamp((now - t0) / dur, 0, 1);
+        const e = 1 - Math.pow(1 - p, 4);
+        el.textContent = Math.round(target * e).toLocaleString('en-US');
+        if (p < 1) requestAnimationFrame(step);
+      })(t0);
+    });
+  }, { threshold: 0.4 });
+  els.forEach(e => io.observe(e));
+})();
+
+/* ══════════════════════════════════════════════════════════════
+   13. TILT + MAGNET
+   ══════════════════════════════════════════════════════════════ */
+if (!COARSE && !REDUCED) {
+  $$('[data-tilt]').forEach(el => {
+    const strength = 10;
+    const base = getComputedStyle(el).transform;
+    const baseT = base === 'none' ? '' : '';
+    el.addEventListener('mousemove', e => {
+      const r = el.getBoundingClientRect();
+      const px = (e.clientX - r.left) / r.width - 0.5;
+      const py = (e.clientY - r.top) / r.height - 0.5;
+      el.style.transform = `${baseT} perspective(900px) rotateX(${-py * strength}deg) rotateY(${px * strength}deg) translateZ(8px)`;
+    });
+    el.addEventListener('mouseleave', () => { el.style.transform = ''; });
+  });
+
+  $$('[data-magnet]').forEach(el => {
+    el.addEventListener('mousemove', e => {
+      const r = el.getBoundingClientRect();
+      const dx = (e.clientX - (r.left + r.width / 2)) * 0.24;
+      const dy = (e.clientY - (r.top + r.height / 2)) * 0.34;
+      el.style.transform = `translate(${dx}px, ${dy}px)`;
+    });
+    el.addEventListener('mouseleave', () => { el.style.transform = ''; });
+  });
+}
+
+/* every element that should croak */
+document.addEventListener('click', e => {
+  if (e.target.closest('[data-croak]')) Sound.croak();
+}, true);
+
+/* ══════════════════════════════════════════════════════════════
+   14. CONTRACT ADDRESS
+   ══════════════════════════════════════════════════════════════ */
+(function contract() {
+  const bar = $('#caBar'), val = $('#caValue');
+  const has = !!CONFIG.ca;
+  val.textContent = has ? CONFIG.ca : 'DROPPING SOON — WATCH @eltoadpepe';
+
+  async function copy() {
+    if (!has) { toast('NO CONTRACT YET — STAY TUNED'); return; }
+    try {
+      await navigator.clipboard.writeText(CONFIG.ca);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = CONFIG.ca; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch {}
+      ta.remove();
+    }
+    bar.classList.add('is-copied');
+    setTimeout(() => bar.classList.remove('is-copied'), 1600);
+    toast('✓ CONTRACT COPIED — VERIFY BEFORE YOU BUY');
+  }
+  bar.addEventListener('click', copy);
+  $('#caBar2')?.addEventListener('click', copy);
+
+  // wire every outbound link from CONFIG
+  const wire = (sel, url) => { const el = $(sel); if (el) el.href = url; };
+  wire('#buyLink',       CONFIG.buy);
+  wire('#lnkX',          CONFIG.x);
+  wire('#lnkCommunity',  CONFIG.community);
+  wire('#lnkChart',      CONFIG.chart);
+  wire('#lnkScan',       CONFIG.scan);
+})();
+
+/* ══════════════════════════════════════════════════════════════
+   15. THE TV
+   ══════════════════════════════════════════════════════════════ */
+(function tv() {
+  const tv = $('#tv'), vid = $('#tapeVideo'), play = $('#tapePlay');
+  const time = $('#tapeTime'), kSound = $('#knobSound'), kFull = $('#knobFull');
+  if (!tv) return;
+
+  const fmt = s => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+  function start() {
+    tv.classList.add('is-switching');
+    setTimeout(() => tv.classList.remove('is-switching'), 420);
+    vid.muted = false;
+    vid.play().then(() => {
+      tv.classList.add('is-playing');
+      kSound.classList.add('is-on');
+    }).catch(() => {
+      vid.muted = true;
+      vid.play().then(() => { tv.classList.add('is-playing'); toast('AUTOPLAY BLOCKED — TAP VOL FOR SOUND'); });
+    });
+  }
+
+  play.addEventListener('click', start);
+  vid.addEventListener('click', () => {
+    if (vid.paused) start();
+    else { vid.pause(); tv.classList.remove('is-playing'); }
+  });
+  vid.addEventListener('timeupdate', () => { time.textContent = fmt(vid.currentTime); });
+  vid.addEventListener('ended', () => { tv.classList.remove('is-playing'); vid.currentTime = 0; });
+
+  kSound.addEventListener('click', () => {
+    vid.muted = !vid.muted;
+    kSound.classList.toggle('is-on', !vid.muted);
+    if (vid.paused) start();
+    Sound.blip(vid.muted ? 340 : 880, 0.07, 0.04);
+  });
+
+  kFull.addEventListener('click', () => {
+    const el = $('#tvScreen');
+    if (!document.fullscreenElement) el.requestFullscreen?.().catch(() => {});
+    else document.exitFullscreen?.();
+  });
+
+  // pause the hero video while the tape is on screen — one soundtrack at a time
+  const io = new IntersectionObserver(([en]) => {
+    if (en.isIntersecting) { heroVideo?.pause(); }
+    else { if (!vid.paused) { vid.pause(); tv.classList.remove('is-playing'); } startHeroVideo(); }
+  }, { threshold: 0.35 });
+  io.observe(tv);
+})();
+
+/* ══════════════════════════════════════════════════════════════
+   16. LORE RAIL — drag to scrub, line fills with progress
+   ══════════════════════════════════════════════════════════════ */
+(function lore() {
+  const track = $('#loreTrack'), prog = $('#loreProgress');
+  if (!track) return;
+  let down = false, sx = 0, sl = 0, moved = 0;
+
+  track.addEventListener('pointerdown', e => {
+    down = true; moved = 0;
+    sx = e.clientX; sl = track.scrollLeft;
+    track.classList.add('is-dragging');
+    track.setPointerCapture(e.pointerId);
+  });
+  track.addEventListener('pointermove', e => {
+    if (!down) return;
+    const d = e.clientX - sx;
+    moved = Math.abs(d);
+    track.scrollLeft = sl - d;
+  });
+  const up = e => {
+    if (!down) return;
+    down = false;
+    track.classList.remove('is-dragging');
+    try { track.releasePointerCapture(e.pointerId); } catch {}
+  };
+  track.addEventListener('pointerup', up);
+  track.addEventListener('pointercancel', up);
+  track.addEventListener('click', e => { if (moved > 6) { e.preventDefault(); e.stopPropagation(); } }, true);
+
+  const upd = () => {
+    const max = track.scrollWidth - track.clientWidth;
+    prog.style.width = (max > 0 ? (track.scrollLeft / max) * 100 : 0) + '%';
+  };
+  upd();
+  track.addEventListener('scroll', upd, { passive: true });
+  addEventListener('resize', upd);
+})();
+
+/* ══════════════════════════════════════════════════════════════
+   17. GLITCH BURSTS
+   ══════════════════════════════════════════════════════════════ */
+function glitch() {
+  if (REDUCED) return;
+  document.body.classList.add('glitching');
+  setTimeout(() => document.body.classList.remove('glitching'), 320);
+}
+if (!REDUCED) setInterval(() => { if (Math.random() < 0.14) glitch(); }, 7000);
+
+/* ══════════════════════════════════════════════════════════════
+   18. EASTER EGG — type TOAD
+   ══════════════════════════════════════════════════════════════ */
+(function egg() {
+  let buf = '';
+  const flash = $('#fxFlash');
+  addEventListener('keydown', e => {
+    if (e.key.length !== 1) return;
+    buf = (buf + e.key.toLowerCase()).slice(-4);
+    if (buf !== 'toad') return;
+    buf = '';
+    rave();
+  });
+
+  function rave() {
+    Sound.croak();
+    setTimeout(() => Sound.croak(), 160);
+    setTimeout(() => Sound.croak(), 320);
+    flash.classList.remove('is-on'); void flash.offsetWidth; flash.classList.add('is-on');
+    document.body.classList.add('rave');
+    toast('🐸 RIBBIT MODE ENGAGED');
+
+    const imgs = [];
+    for (let i = 0; i < 22; i++) {
+      const m = MEMES[Math.floor(Math.random() * MEMES.length)];
+      const img = document.createElement('img');
+      img.className = 'rave-toad';
+      img.src = `/assets/memes/thumb/${m.f}.jpg`;
+      img.style.left = rand(-5, 95) + 'vw';
+      img.style.top = rand(-5, 90) + 'vh';
+      img.style.transform = `rotate(${rand(-35, 35)}deg) scale(${rand(.6, 1.4)})`;
+      img.style.transition = 'transform 1.1s cubic-bezier(.22,1,.36,1), opacity .5s ease';
+      img.style.opacity = '0';
+      document.body.appendChild(img);
+      imgs.push(img);
+      setTimeout(() => {
+        img.style.opacity = '1';
+        img.style.transform = `rotate(${rand(-45, 45)}deg) scale(${rand(.8, 1.7)}) translateY(${rand(-60, 60)}px)`;
+      }, i * 38);
+    }
+
+    setTimeout(() => {
+      document.body.classList.remove('rave');
+      imgs.forEach(i => { i.style.opacity = '0'; setTimeout(() => i.remove(), 600); });
+    }, 4200);
+  }
+
+  $('#eggHint')?.addEventListener('click', rave);
+})();
+
+/* ══════════════════════════════════════════════════════════════
+   19. BOOTSTRAP
+   ══════════════════════════════════════════════════════════════ */
+buildStrips();
+$$('.ticker__track, .foot__track').forEach(initMarquee);
+addEventListener('resize', () => marquees.forEach(m => m.measure()));
+addEventListener('load',   () => marquees.forEach(m => m.measure()));
+
+/* smooth-scroll for in-page anchors that smooth-behavior misses */
+document.addEventListener('click', e => {
+  const a = e.target.closest('a[href^="#"]');
+  if (!a) return;
+  const id = a.getAttribute('href');
+  if (id.length < 2) return;
+  const target = document.querySelector(id);
+  if (!target) return;
+  e.preventDefault();
+  target.scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'start' });
+});
+
+console.log('%c🐸 $TOAD — CANAL 88 ', 'background:#a8ff1a;color:#030603;font:700 14px monospace;padding:6px 12px;border-radius:3px');
+console.log('%cThe first Pepe. Since 1988. Type TOAD anywhere for a surprise.', 'color:#74c13b;font:12px monospace');

@@ -1,0 +1,14 @@
+# original untouched source images (already exported to /assets/memes)
+_source/
+
+# os / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# tooling
+node_modules/
+.vercel
+*.log
