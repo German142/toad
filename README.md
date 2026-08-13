@@ -93,8 +93,31 @@ until someone asks for them.
 - **Synthesised croak** — button clicks make a frog noise built live with the Web Audio API,
   no audio files shipped
 - **Easter egg** — type `TOAD` anywhere on the page
-- Custom cursor with a fly that can't quite keep up, drifting spore particles, magnetic
-  buttons, tilt cards, scroll reveals, animated counters, random VHS glitch bursts
+- **Toad-head cursor** — cut out of `logo2.jpg` with a cream halo so it stays readable on
+  the dark background. It's a native CSS cursor, not a div chasing the pointer, so it never
+  lags; it cocks its head over anything clickable
+- A fly that can't quite keep up, drifting spore particles, magnetic buttons, tilt cards,
+  scroll reveals, animated counters, random VHS glitch bursts
+
+## Performance
+
+The page carries a lot of moving parts, so it measures the machine before deciding how much
+to run. `LITE` mode (`js/main.js`) kicks in on reduced-motion, Data Saver, a slow connection,
+four cores or fewer, or any touch device: film grain switches off, scanlines lighten, and
+the spore count and canvas resolution drop. Below three cores the hero video never loads at
+all and the poster frame stands in — the page reads identically.
+
+Beyond that: the hero video is only fetched once you're past the boot screen, pauses whenever
+it scrolls out of view or the tab goes to the background, and carries no CSS `filter`
+(grading a full-screen video costs a GPU pass per frame). Channel tapes are `preload="none"`.
+
+**The video files themselves are the remaining bottleneck.** Several channel clips run at
+28–36 Mbps, roughly ten times what they need. Re-encoding them fixes the last of the
+stutter on weak hardware:
+
+```bash
+ffmpeg -i in.mp4 -c:v libx264 -crf 26 -preset slow -vf scale=1280:-2 -c:a aac -b:a 96k -movflags +faststart out.mp4
+```
 - Fully responsive, and every animation respects `prefers-reduced-motion`
 
 ## Running it locally

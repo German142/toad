@@ -58,6 +58,18 @@ const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const COARSE  = matchMedia('(pointer: coarse)').matches;
+
+/* ── how much machine are we working with? ──
+   A full-screen looping video plus grain, scanlines and a particle canvas is
+   a lot to ask of a thin laptop. On weak hardware we drop the decorations
+   first, and on the weakest we drop the background video too and leave the
+   poster frame — the page still reads exactly the same. */
+const SAVE_DATA = navigator.connection?.saveData === true;
+const SLOW_NET  = /^(slow-2g|2g|3g)$/.test(navigator.connection?.effectiveType || '');
+const CORES     = navigator.hardwareConcurrency || 4;
+const LITE      = REDUCED || SAVE_DATA || SLOW_NET || CORES <= 4 || COARSE;
+const NO_HERO_VIDEO = REDUCED || SAVE_DATA || SLOW_NET || CORES <= 2;
+if (LITE) document.body.classList.add('perf-lite');
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const rand  = (a, b) => a + Math.random() * (b - a);
 
@@ -203,10 +215,27 @@ function toast(msg) {
    4. HERO
    ══════════════════════════════════════════════════════════════ */
 const heroVideo = $('#heroVideo');
+let heroOnScreen = true;
+
 function startHeroVideo() {
-  if (!heroVideo) return;
+  if (!heroVideo || NO_HERO_VIDEO || !heroOnScreen || document.hidden) return;
+  if (!heroVideo.src) heroVideo.src = '/assets/video/intro.mp4';   // only fetched once we're past the boot screen
   heroVideo.play().catch(() => {});
 }
+
+/* Decoding 720p behind six screens of content nobody is looking at is pure
+   waste — stop the moment the hero leaves the viewport. */
+if (heroVideo && !NO_HERO_VIDEO) {
+  new IntersectionObserver(([en]) => {
+    heroOnScreen = en.isIntersecting;
+    if (heroOnScreen) startHeroVideo();
+    else heroVideo.pause();
+  }, { threshold: 0.01 }).observe($('#hero'));
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) heroVideo?.pause();
+  else startHeroVideo();
+});
 function revealHero() {
   const k = $('.hero__kicker');
   const title = $('.wordmark');
@@ -263,16 +292,22 @@ if (!REDUCED) {
   const cv = $('#spores');
   if (!cv || REDUCED) { if (cv) cv.style.display = 'none'; return; }
   const ctx = cv.getContext('2d');
-  let w, h, parts = [], dpr = Math.min(devicePixelRatio || 1, 2);
+  let w, h, parts = [], dpr = Math.min(devicePixelRatio || 1, LITE ? 1 : 2);
+  let running = true;
 
   function size() {
     w = cv.width  = innerWidth  * dpr;
     h = cv.height = innerHeight * dpr;
     cv.style.width = innerWidth + 'px';
     cv.style.height = innerHeight + 'px';
-    const n = clamp(Math.round(innerWidth / 22), 26, 80);
+    const n = clamp(Math.round(innerWidth / (LITE ? 46 : 22)), LITE ? 12 : 26, LITE ? 30 : 80);
     parts = Array.from({ length: n }, () => spawn());
   }
+
+  document.addEventListener('visibilitychange', () => {
+    running = !document.hidden;
+    if (running) frame();
+  });
   function spawn(atBottom) {
     return {
       x: rand(0, w), y: atBottom ? h + rand(0, 60) : rand(0, h),
@@ -285,6 +320,7 @@ if (!REDUCED) {
     };
   }
   function frame() {
+    if (!running) return;
     ctx.clearRect(0, 0, w, h);
     for (const p of parts) {
       p.p += 0.014;
@@ -313,45 +349,35 @@ if (!REDUCED) {
 /* ══════════════════════════════════════════════════════════════
    6. CURSOR + THE FLY
    ══════════════════════════════════════════════════════════════ */
-if (!COARSE && !REDUCED) {
-  const cur = $('#cursor'), fly = $('#fly');
+/* The toad head itself is a native CSS cursor — see style.css. All that is
+   left here is the fly it keeps failing to catch. */
+if (!COARSE && !LITE) {
+  const fly = $('#fly');
   let mx = innerWidth / 2, my = innerHeight / 2;
-  let cx = mx, cy = my;
-  let fx = mx, fy = my, fvx = 0, fvy = 0, t = 0;
+  let fx = mx, fy = my, fvx = 0, fvy = 0, t = 0, awake = true;
 
   addEventListener('mousemove', e => {
     mx = e.clientX; my = e.clientY;
-    cur.classList.add('is-on'); fly.classList.add('is-on');
+    fly.classList.add('is-on');
   }, { passive: true });
-
-  addEventListener('mouseleave', () => { cur.classList.remove('is-on'); fly.classList.remove('is-on'); });
-
-  const hot = 'a, button, .meme, [data-tilt], input';
-  document.addEventListener('mouseover', e => {
-    if (e.target.closest(hot)) cur.classList.add('is-hot');
-  });
-  document.addEventListener('mouseout', e => {
-    if (e.target.closest(hot)) cur.classList.remove('is-hot');
+  addEventListener('mouseleave', () => fly.classList.remove('is-on'));
+  document.addEventListener('visibilitychange', () => {
+    awake = !document.hidden;
+    if (awake) loop();
   });
 
-  (function loop() {
-    cx += (mx - cx) * 0.22;
-    cy += (my - cy) * 0.22;
-    cur.style.transform = `translate(${cx}px, ${cy}px)` + (cur.classList.contains('is-hot') ? ' scale(1.55)' : '');
-
-    // the fly orbits the cursor, badly
+  function loop() {
+    if (!awake) return;
     t += 0.045;
     const tx = mx + Math.cos(t * 1.7) * 46 + Math.sin(t * 0.6) * 20;
     const ty = my + Math.sin(t * 2.3) * 38 + Math.cos(t * 0.9) * 16;
     fvx += (tx - fx) * 0.055; fvy += (ty - fy) * 0.055;
     fvx *= 0.82; fvy *= 0.82;
     fx += fvx; fy += fvy;
-    fly.style.transform = `translate(${fx}px, ${fy}px)`;
+    fly.style.transform = `translate3d(${fx}px, ${fy}px, 0)`;
     requestAnimationFrame(loop);
-  })();
-
-  // cursor sits above the OS one
-  document.documentElement.style.cursor = 'none';
+  }
+  loop();
 }
 
 /* ══════════════════════════════════════════════════════════════

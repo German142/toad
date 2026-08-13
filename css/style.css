@@ -181,20 +181,32 @@ body::before{
    GLOBAL FX
    ══════════════════════════════════════════════════════════════ */
 .fx-spores{ position:fixed; inset:0; width:100%; height:100%; z-index:1; pointer-events:none; opacity:.85; }
+/* Grain used to be a 4900×3000 layer sliding around 3× a second — a repaint
+   that big is the single most expensive thing on the page. It is now viewport
+   sized, moves by a few pixels, and switches off entirely in lite mode. */
 .fx-grain{
-  position:fixed; inset:-120%; z-index:3; pointer-events:none; opacity:.05;
+  position:fixed; inset:-40px; z-index:3; pointer-events:none; opacity:.05;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   animation:grain 700ms steps(4) infinite;
+  will-change:transform;
 }
 @keyframes grain{
-  0%{transform:translate(0,0)} 25%{transform:translate(-2%,1%)}
-  50%{transform:translate(1%,-2%)} 75%{transform:translate(-1%,-1%)} 100%{transform:translate(2%,1%)}
+  0%{transform:translate3d(0,0,0)}      25%{transform:translate3d(-14px,8px,0)}
+  50%{transform:translate3d(9px,-13px,0)} 75%{transform:translate3d(-7px,-6px,0)}
+  100%{transform:translate3d(13px,7px,0)}
 }
+/* `mix-blend-mode` over a playing video forces a full-screen composite every
+   frame; plain translucent lines look the same and cost nothing. */
 .fx-scan{
-  position:fixed; inset:0; z-index:4; pointer-events:none; opacity:.3;
-  background:repeating-linear-gradient(0deg, rgba(0,0,0,.32) 0 1px, transparent 1px 3px);
-  mix-blend-mode:multiply;
+  position:fixed; inset:0; z-index:4; pointer-events:none; opacity:.22;
+  background:repeating-linear-gradient(0deg, rgba(0,0,0,.5) 0 1px, transparent 1px 3px);
 }
+
+/* ─── lite mode: weak hardware, small screens, or Data Saver ─── */
+body.perf-lite .fx-grain{ display:none; }
+body.perf-lite .fx-scan{ opacity:.14; }
+body.perf-lite .hero__rgb{ animation:none; }
+body.perf-lite .fx-vignette{ box-shadow:inset 0 0 90px rgba(0,0,0,.8); }
 .fx-vignette{
   position:fixed; inset:0; z-index:4; pointer-events:none;
   box-shadow:inset 0 0 clamp(80px,14vw,220px) rgba(0,0,0,.85);
@@ -225,17 +237,26 @@ body.rave{ animation:raveBg .38s steps(2) infinite; }
   border:3px solid var(--slime); box-shadow:0 0 40px rgba(168,255,26,.6);
 }
 
-/* cursor */
-.cursor{
-  position:fixed; top:0; left:0; z-index:1600; width:40px; height:40px;
-  margin:-20px 0 0 -20px; pointer-events:none; opacity:0;
-  transition:opacity .3s ease, transform .16s var(--ease);
-  mix-blend-mode:difference;
+/* ─── the toad-head cursor ───
+   A native cursor rather than a div chasing the pointer: it never lags, costs
+   no frames, and survives on the weakest laptop. Two states — head straight,
+   and head cocked over anything clickable. */
+html{
+  cursor:url("/assets/brand/cursor-toad.png") 6 5, auto;
+  cursor:image-set(
+    url("/assets/brand/cursor-toad.png") 1x,
+    url("/assets/brand/cursor-toad@2x.png") 2x) 6 5, auto;
 }
-.cursor svg{ width:100%; height:100%; }
-.cursor circle{ fill:none; stroke:var(--slime); stroke-width:2; }
-.cursor.is-on{ opacity:1; }
-.cursor.is-hot{ transform:scale(1.55); }
+a, button, summary, label, [role="tab"], .meme, .scrub__rail{
+  cursor:url("/assets/brand/cursor-toad-hover.png") 7 6, pointer;
+  cursor:image-set(
+    url("/assets/brand/cursor-toad-hover.png") 1x,
+    url("/assets/brand/cursor-toad-hover@2x.png") 2x) 7 6, pointer;
+}
+.scrub__thumb{ cursor:grab; }
+.scrub__thumb.is-grabbing, .lore__track.is-dragging{ cursor:grabbing; }
+input, textarea{ cursor:text; }
+
 .fly{
   position:fixed; top:0; left:0; z-index:1601; width:7px; height:7px;
   margin:-3.5px 0 0 -3.5px; border-radius:50%;
@@ -394,16 +415,17 @@ body.rave{ animation:raveBg .38s steps(2) infinite; }
   isolation:isolate;
 }
 .hero__video{ position:absolute; inset:0; z-index:-3; }
+/* no per-frame `filter` here — grading a full-screen video costs a GPU pass
+   every frame. The colour is baked into .hero__grade instead. */
 .hero__video video{
   width:100%; height:100%; object-fit:cover;
-  filter:saturate(1.15) contrast(1.05);
   transform:scale(1.06);
 }
 .hero__grade{
   position:absolute; inset:0; z-index:-2;
   background:
     linear-gradient(180deg, rgba(6,13,7,.86) 0%, rgba(6,13,7,.42) 30%, rgba(6,13,7,.62) 62%, var(--swamp) 100%),
-    radial-gradient(70% 60% at 50% 45%, transparent, rgba(6,13,7,.7));
+    radial-gradient(70% 60% at 50% 45%, rgba(20,60,18,.10), rgba(6,13,7,.72));
 }
 .hero__rgb{
   position:absolute; inset:0; z-index:-1; pointer-events:none;
@@ -1221,7 +1243,11 @@ body.rave{ animation:raveBg .38s steps(2) infinite; }
   .comm__links{ grid-template-columns:1fr 1fr; }
   .tv-side{ grid-template-columns:1fr; }
   .dial__list{ grid-template-columns:repeat(3,1fr); }
-  .cursor, .fly{ display:none; }
+  .fly{ display:none; }
+}
+/* a custom cursor is meaningless on touch, and costs a decode */
+@media (pointer:coarse){
+  html, a, button, summary, label, [role="tab"], .meme, .scrub__rail{ cursor:auto; }
 }
 
 @media (max-width:560px){
