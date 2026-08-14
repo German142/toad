@@ -119,7 +119,9 @@ actually loads (198 KB instead of 1.2 MB). Replace both, keeping the names.
 
 ## The link preview
 
-`assets/brand/og-cover.jpg` (1200×630) is the card X, Telegram and Discord show.
+`assets/brand/og-cover.jpg` (1200×630) is the card X, Telegram and Discord show. It's the
+desktop composed as a still: the wallpaper, a Toad Explorer window, the wordmark and the
+taskbar with its green start button — so the preview looks like the thing it links to.
 
 Those tags use **absolute** URLs, and the domain has to be one that actually serves the file —
 scrapers fetch it over the network, and a domain that 404s gives a card with a title and no
