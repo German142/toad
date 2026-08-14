@@ -69,10 +69,19 @@ the lightbox, the counter, the shuffle — updates itself.
 pastes the link. It's the hero composed as a still: a frame of `intro.mp4`, the same gradient
 and scanlines the hero uses, and the wordmark on top.
 
-The `og:image` and `twitter:image` tags use **absolute** URLs — scrapers won't resolve a
-relative path. If the site moves off `toad.fun`, update the domain in those two tags and in
-`og:url`. Scrapers cache aggressively, so use X's Card Validator or Telegram's `@WebpageBot`
-to force a refresh after changing the image.
+Those tags use **absolute** URLs, and the domain in them has to be one that actually serves
+the file. Scrapers fetch the image over the network — they don't resolve relative paths, and
+a domain that 404s gives you a card with a title and no picture.
+
+They currently point at `https://toad-new-web.vercel.app`. **If the site ever moves to another
+domain, replace that host in the tags at the top of `index.html` — that's the only edit
+needed.**
+
+Both X and Telegram cache previews hard, so force a re-scrape after any change:
+
+- **X** — Card Validator at `cards-dev.twitter.com/validator`
+- **Telegram** — message `@WebpageBot` with the link
+- **Discord** — append a throwaway query string (`?v=2`) to bust its cache
 
 ### Adding a channel
 
