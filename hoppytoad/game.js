@@ -730,7 +730,7 @@
      ══════════════════════════════════════════════════════════ */
   function fail(msg) {
     elLoad.hidden = false;
-    elLoad.innerHTML = '<span>' + msg + '</span>';
+    elLoad.textContent = msg;          // textContent, not innerHTML: msg carries a URL
   }
 
   /* A read-only window into the simulation, for automated play-testing.

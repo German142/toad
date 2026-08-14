@@ -215,6 +215,30 @@ npx serve .
 Vercel picks this up as a static site with no configuration. Framework preset **Other**, leave
 build command and output directory empty.
 
+### Security headers
+
+`vercel.json` sets a CSP plus the usual companions. The parts that matter here:
+
+- **`frame-ancestors 'self'` and `X-Frame-Options: SAMEORIGIN`** — the site cannot be framed
+  by anyone else. On a page whose job is handing out a contract address, clickjacking is the
+  realistic attack: iframe the real site, overlay a fake address, let the victim copy it.
+  `'self'` rather than `'none'` because the desktop frames its own `/hoppytoad/`.
+- **`frame-src` allowlists only Dexscreener**, so no other embed can be introduced.
+- **`connect-src 'self'`** — nothing here talks to a third-party API, and now nothing can.
+- **`object-src 'none'`, `base-uri 'self'`, `form-action 'none'`** — no plugins, no base
+  hijacking, no form posting anywhere.
+
+`script-src` keeps `'unsafe-inline'` deliberately. The base-URL guard in
+`hoppytoad/index.html` has to be inline — it runs before the stylesheet, and an external file
+could not be fetched when the base is exactly what is broken. A hash would work but silently
+breaks the guard whenever line endings change on checkout, and this site has no user input,
+no query parameters read into the DOM and no dynamic data, so there is no injection path for
+`'unsafe-inline'` to widen.
+
+The Dexscreener frame is sandboxed and, deliberately, **not** granted `clipboard-write`. A
+third-party frame that can rewrite the clipboard on a page built around copying a contract
+address is exactly the wrong permission to hand out.
+
 Two things about `vercel.json` worth knowing before editing it:
 
 - **It is validated against a schema, and unknown top-level keys fail the build.** JSON has no

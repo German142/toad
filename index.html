@@ -573,7 +573,7 @@ CONTRACT
 
 <template id="app-hoppytoad">
   <div class="arcade">
-    <iframe id="hoppyFrame" title="Hoppy Toad" allow="autoplay"></iframe>
+    <iframe id="hoppyFrame" title="Hoppy Toad"></iframe>
   </div>
 </template>
 
@@ -590,8 +590,15 @@ CONTRACT
         <span>Live price, liquidity and trades, straight from the pair.</span>
         <i>Blocked? Dexscreener refuses to be framed sometimes — use <b>Open in browser</b>.</i>
       </div>
+      <!-- Third-party frame, so it gets the narrowest box that still works.
+           No clipboard-write: this page's whole job is handing people a
+           contract address to copy, and a frame that can rewrite the
+           clipboard could swap it for someone else's wallet.
+           No allow-top-navigation either — the chart has no business
+           steering the browser away from the site. -->
       <iframe id="chartFrame" title="Dexscreener live chart for $TOAD"
-              referrerpolicy="no-referrer" allow="clipboard-write"></iframe>
+              referrerpolicy="no-referrer"
+              sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"></iframe>
     </div>
   </div>
 </template>
