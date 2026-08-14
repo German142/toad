@@ -4,23 +4,21 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>$TOAD — El Toad Pepe · The First Pepe, Since 1988</title>
-<meta name="description" content="Before the internet frog there was a toad. 1988, Argentine television, green skin, red shirt, yellow suspenders. El Toad Pepe is back — now broadcasting on Solana." />
-<meta name="theme-color" content="#060d07" />
+<meta name="description" content="ToadOS. Before the internet frog there was a toad — 1988, Argentine television, green skin, red shirt, yellow suspenders. El Toad Pepe, now on Solana." />
+<meta name="theme-color" content="#245edb" />
 
 <!-- ══ LINK PREVIEW ══════════════════════════════════════════════════════
-     These URLs must be absolute and must point at the domain that is ACTUALLY
-     SERVING this deployment — scrapers fetch the image over the network, so a
-     domain that 404s means a card with a title and no picture.
-
-     ► IF THIS SITE EVER MOVES TO A NEW DOMAIN: replace every
-       https://toad-new-web.vercel.app below with the new one. Nothing else.
-       Then re-scrape (X Card Validator, Telegram @WebpageBot); both cache hard.
+     Absolute URLs pointing at the domain that ACTUALLY SERVES this build —
+     scrapers fetch the image over the network, and a 404 means a card with
+     a title and no picture.
+     ► IF THE SITE MOVES: replace every https://toad-new-web.vercel.app below.
+       Then re-scrape (X Card Validator, Telegram @WebpageBot) — both cache.
      ═══════════════════════════════════════════════════════════════════════ -->
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="El Toad Pepe" />
 <meta property="og:url" content="https://toad-new-web.vercel.app/" />
 <meta property="og:title" content="$TOAD — The First Pepe, Since 1988" />
-<meta property="og:description" content="Channel 88 is back on air. El Toad Pepe, the original green icon, now on Solana." />
+<meta property="og:description" content="ToadOS Original Edition. Boot it up. El Toad Pepe, the original green icon, now on Solana." />
 <meta property="og:image" content="https://toad-new-web.vercel.app/assets/brand/og-cover.jpg" />
 <meta property="og:image:secure_url" content="https://toad-new-web.vercel.app/assets/brand/og-cover.jpg" />
 <meta property="og:image:type" content="image/jpeg" />
@@ -30,7 +28,7 @@
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:site" content="@eltoadpepe" />
 <meta name="twitter:title" content="$TOAD — The First Pepe, Since 1988" />
-<meta name="twitter:description" content="Channel 88 is back on air. El Toad Pepe, the original green icon, now on Solana." />
+<meta name="twitter:description" content="ToadOS Original Edition. Boot it up. El Toad Pepe, the original green icon, now on Solana." />
 <meta name="twitter:image" content="https://toad-new-web.vercel.app/assets/brand/og-cover.jpg" />
 <meta name="twitter:image:alt" content="The $TOAD wordmark over the Canal 88 broadcast footage" />
 
@@ -39,523 +37,585 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Space+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet" />
 
-<link rel="stylesheet" href="/css/style.css" />
+<link rel="stylesheet" href="/css/xp.css" />
 </head>
-<body>
+<body class="booting">
 
-<!-- ═══════════════ CRT BOOT SEQUENCE ═══════════════ -->
-<div class="boot" id="boot">
-  <canvas class="boot__static" id="bootStatic"></canvas>
-  <div class="boot__scan"></div>
-  <div class="boot__inner">
-    <div class="boot__badge">CANAL <span>88</span></div>
-    <img class="boot__logo" src="/assets/brand/logo.png" alt="" />
-    <div class="boot__bars" aria-hidden="true">
-      <i style="--c:#f4f1e4"></i><i style="--c:#f5c518"></i><i style="--c:#3ec9c9"></i>
-      <i style="--c:#74c13b"></i><i style="--c:#c14bb9"></i><i style="--c:#e0342a"></i>
-      <i style="--c:#2b56c6"></i><i style="--c:#0a140b"></i>
+<!-- ═══════════════════════════════════════════════════════════════
+     ICON SPRITE
+     Every app icon is drawn here rather than borrowed from an emoji
+     font, so they render identically everywhere and all carry the
+     character. <image> pulls the toad head out of the logo and a
+     circular clip drops it into each one.
+     ═══════════════════════════════════════════════════════════════ -->
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <defs>
+    <clipPath id="cCirc" clipPathUnits="objectBoundingBox"><circle cx=".5" cy=".5" r=".5"/></clipPath>
+    <linearGradient id="gPage" x1="0" y1="0" x2=".3" y2="1">
+      <stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#c9d2e0"/>
+    </linearGradient>
+    <linearGradient id="gFolder" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffe08a"/><stop offset="1" stop-color="#e8a41d"/>
+    </linearGradient>
+    <linearGradient id="gGlobe" x1=".2" y1="0" x2=".8" y2="1">
+      <stop offset="0" stop-color="#9fd8ff"/><stop offset="1" stop-color="#1667c4"/>
+    </linearGradient>
+    <linearGradient id="gTV" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7d8a99"/><stop offset="1" stop-color="#333d4a"/>
+    </linearGradient>
+    <linearGradient id="gSheet" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7ddc63"/><stop offset="1" stop-color="#1c8a34"/>
+    </linearGradient>
+    <linearGradient id="gBin" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#dfe6ee"/><stop offset="1" stop-color="#8f9aa8"/>
+    </linearGradient>
+    <linearGradient id="gGloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".65"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- browser: globe with the toad riding it -->
+  <symbol id="ic-explorer" viewBox="0 0 48 48">
+    <circle cx="22" cy="24" r="16" fill="url(#gGlobe)" stroke="#0d4c96" stroke-width="1.5"/>
+    <path d="M6 24h32M22 8c-6 5-6 27 0 32M22 8c6 5 6 27 0 32" fill="none" stroke="#e8f4ff" stroke-width="1.2" opacity=".85"/>
+    <ellipse cx="22" cy="15" rx="15" ry="5" fill="url(#gGloss)"/>
+    <image href="/assets/brand/logo.png" x="26" y="24" width="20" height="20" clip-path="url(#cCirc)"/>
+    <circle cx="36" cy="34" r="10" fill="none" stroke="#fff" stroke-width="1.5"/>
+  </symbol>
+
+  <!-- the television -->
+  <symbol id="ic-canal88" viewBox="0 0 48 48">
+    <rect x="3" y="9" width="42" height="30" rx="4" fill="url(#gTV)" stroke="#20262e" stroke-width="1.5"/>
+    <rect x="6.5" y="12.5" width="28" height="23" rx="2" fill="#0a1a10" stroke="#000"/>
+    <image href="/assets/brand/logo.png" x="10" y="14" width="21" height="21" clip-path="url(#cCirc)"/>
+    <g fill="#a8ff1a" opacity=".5">
+      <rect x="6.5" y="14" width="28" height="1"/><rect x="6.5" y="20" width="28" height="1"/>
+      <rect x="6.5" y="26" width="28" height="1"/><rect x="6.5" y="32" width="28" height="1"/>
+    </g>
+    <circle cx="40" cy="18" r="3" fill="#c9d3de" stroke="#333d4a"/>
+    <circle cx="40" cy="27" r="3" fill="#c9d3de" stroke="#333d4a"/>
+    <rect x="37" y="32" width="6" height="4" rx="1" fill="#1c232c"/>
+    <path d="M12 9 L20 2 M30 9 L23 2" stroke="#8d99a8" stroke-width="1.6" fill="none"/>
+    <rect x="9" y="39" width="5" height="4" fill="#20262e"/><rect x="34" y="39" width="5" height="4" fill="#20262e"/>
+  </symbol>
+
+  <!-- evidence folder with a photo sticking out -->
+  <symbol id="ic-memes" viewBox="0 0 48 48">
+    <path d="M4 12a2 2 0 0 1 2-2h12l4 4h20a2 2 0 0 1 2 2v22a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"
+          fill="url(#gFolder)" stroke="#a86f0a" stroke-width="1.4"/>
+    <rect x="13" y="8" width="24" height="19" rx="1.5" fill="#fff" stroke="#8d99a8" transform="rotate(-7 25 17)"/>
+    <image href="/assets/brand/logo.png" x="17" y="9" width="16" height="16" clip-path="url(#cCirc)" transform="rotate(-7 25 17)"/>
+    <path d="M4 22h40v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" fill="#f7c246" opacity=".95"/>
+    <path d="M4 22h40v5H4z" fill="url(#gGloss)"/>
+  </symbol>
+
+  <!-- spreadsheet -->
+  <symbol id="ic-tokenomics" viewBox="0 0 48 48">
+    <path d="M9 4h20l10 10v30H9z" fill="url(#gPage)" stroke="#7c879a" stroke-width="1.4"/>
+    <path d="M29 4l10 10H29z" fill="#aeb9c8"/>
+    <rect x="13" y="19" width="22" height="16" fill="#fff" stroke="#1c8a34"/>
+    <g stroke="#1c8a34" stroke-width=".9" opacity=".8">
+      <path d="M13 24h22M13 29h22M20 19v16M27 19v16"/>
+    </g>
+    <rect x="13" y="19" width="22" height="5" fill="url(#gSheet)"/>
+    <image href="/assets/brand/logo.png" x="26" y="27" width="17" height="17" clip-path="url(#cCirc)"/>
+  </symbol>
+
+  <!-- notepad -->
+  <symbol id="ic-buy" viewBox="0 0 48 48">
+    <path d="M9 4h20l10 10v30H9z" fill="url(#gPage)" stroke="#7c879a" stroke-width="1.4"/>
+    <path d="M29 4l10 10H29z" fill="#aeb9c8"/>
+    <g stroke="#8d99a8" stroke-width="1.3">
+      <path d="M14 20h20M14 25h20M14 30h13"/>
+    </g>
+    <image href="/assets/brand/logo.png" x="25" y="26" width="18" height="18" clip-path="url(#cCirc)"/>
+  </symbol>
+
+  <symbol id="ic-safety" viewBox="0 0 48 48">
+    <path d="M9 4h20l10 10v30H9z" fill="url(#gPage)" stroke="#7c879a" stroke-width="1.4"/>
+    <path d="M29 4l10 10H29z" fill="#aeb9c8"/>
+    <g stroke="#8d99a8" stroke-width="1.3">
+      <path d="M14 20h20M14 25h20M14 30h20M14 35h11"/>
+    </g>
+    <image href="/assets/brand/logo.png" x="26" y="27" width="17" height="17" clip-path="url(#cCirc)"/>
+  </symbol>
+
+  <!-- help book -->
+  <symbol id="ic-lore" viewBox="0 0 48 48">
+    <path d="M5 9c6-3 12-3 19 1v32c-7-4-13-4-19-1z" fill="#f0f3f8" stroke="#7c879a" stroke-width="1.4"/>
+    <path d="M43 9c-6-3-12-3-19 1v32c7-4 13-4 19-1z" fill="#dbe3ee" stroke="#7c879a" stroke-width="1.4"/>
+    <path d="M24 10v32" stroke="#7c879a" stroke-width="1.4"/>
+    <text x="13" y="27" font-family="Tahoma,sans-serif" font-size="15" font-weight="700" fill="#c62828" text-anchor="middle">?</text>
+    <image href="/assets/brand/logo.png" x="27" y="26" width="16" height="16" clip-path="url(#cCirc)"/>
+  </symbol>
+
+  <!-- magnifier over a card -->
+  <symbol id="ic-contract" viewBox="0 0 48 48">
+    <rect x="5" y="11" width="34" height="24" rx="2.5" fill="url(#gPage)" stroke="#7c879a" stroke-width="1.4"/>
+    <rect x="5" y="15" width="34" height="4" fill="#4a6f9e"/>
+    <g stroke="#8d99a8" stroke-width="1.2"><path d="M9 24h16M9 28h11"/></g>
+    <image href="/assets/brand/logo.png" x="24" y="20" width="13" height="13" clip-path="url(#cCirc)"/>
+    <circle cx="30" cy="30" r="10" fill="#bfe0ff" fill-opacity=".45" stroke="#2f6bb0" stroke-width="2.4"/>
+    <path d="M37 37l7 7" stroke="#2f6bb0" stroke-width="4" stroke-linecap="round"/>
+  </symbol>
+
+  <!-- recycle bin, occupied -->
+  <symbol id="ic-bin" viewBox="0 0 48 48">
+    <path d="M12 16h24l-2.5 26a3 3 0 0 1-3 2.6H17.5a3 3 0 0 1-3-2.6z"
+          fill="url(#gBin)" stroke="#5f6b79" stroke-width="1.4"/>
+    <ellipse cx="24" cy="16" rx="12" ry="3.4" fill="#e9eef4" stroke="#5f6b79" stroke-width="1.2"/>
+    <path d="M19 22l1.5 18M24 22v18M29 22l-1.5 18" stroke="#8b96a4" stroke-width="1.3"/>
+    <image href="/assets/brand/logo.png" x="26" y="4" width="17" height="17" clip-path="url(#cCirc)"/>
+    <path d="M15 13c2-4 6-6 9-6" fill="none" stroke="#2f8f24" stroke-width="2.4" stroke-linecap="round"/>
+  </symbol>
+
+  <!-- image viewer -->
+  <symbol id="ic-viewer" viewBox="0 0 48 48">
+    <rect x="5" y="9" width="38" height="28" rx="2" fill="#fff" stroke="#7c879a" stroke-width="1.4"/>
+    <path d="M7 33l9-11 6 7 5-5 13 12v1H7z" fill="#7fc24a"/>
+    <circle cx="15" cy="16" r="3.4" fill="#ffd75e"/>
+    <image href="/assets/brand/logo.png" x="27" y="20" width="15" height="15" clip-path="url(#cCirc)"/>
+  </symbol>
+</svg>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     1 · BIOS / POST
+     ═══════════════════════════════════════════════════════════════ -->
+<section class="bios" id="bios">
+  <pre class="bios__out" id="biosOut"></pre>
+  <p class="bios__hint" id="biosHint">Press any key to continue…</p>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     2 · BOOT SPLASH
+     ═══════════════════════════════════════════════════════════════ -->
+<section class="splash" id="splash">
+  <div class="splash__logo">
+    <img src="/assets/brand/logo.png" alt="" />
+    <div>
+      <b>Toad<span>OS</span></b>
+      <em>Original Edition</em>
     </div>
-    <p class="boot__line" id="bootLine">TUNING SIGNAL…</p>
-    <button class="boot__btn" id="bootBtn" type="button">
-      <span>PRESS PLAY</span>
-      <small>1988 — 2026</small>
+  </div>
+  <div class="splash__bar"><i></i><i></i><i></i></div>
+  <p class="splash__legal">Since 1988 · Canal 88 · Archivo Nacional</p>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     3 · WELCOME / LOGIN
+     ═══════════════════════════════════════════════════════════════ -->
+<section class="login" id="login">
+  <div class="login__bar login__bar--top"></div>
+  <div class="login__body">
+    <div class="login__left">
+      <img class="login__mark" src="/assets/brand/logo.png" alt="" />
+      <p class="login__brand"><small>Ultra rare</small>Toad<span>OS</span></p>
+      <p class="login__edition">Original Edition</p>
+      <p class="login__prompt">To begin, select user</p>
+    </div>
+    <div class="login__rule"></div>
+    <div class="login__right">
+      <button class="user user--disabled" type="button" id="userWallet">
+        <span class="user__pic user__pic--wallet">◎</span>
+        <span class="user__meta"><b>Wallet Account</b><i>Connect a Solana wallet — coming soon</i></span>
+      </button>
+      <button class="user" type="button" id="userGuest">
+        <span class="user__pic"><img src="/assets/brand/logo.png" alt="" /></span>
+        <span class="user__meta"><b>Guest</b><i>Enter without connecting a wallet</i></span>
+        <span class="user__go">➜</span>
+      </button>
+    </div>
+  </div>
+  <div class="login__bar login__bar--bottom">
+    <button class="login__toggle" id="scanToggle" type="button"><i>◉</i> Toggle scanlines effect</button>
+    <p>After logging in you can open anything from the <b>start</b> button,
+       or by double-clicking an icon on the desktop.</p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     4 · DESKTOP
+     ═══════════════════════════════════════════════════════════════ -->
+<main class="desktop" id="desktop" aria-label="ToadOS desktop">
+
+  <img class="wall" src="/assets/brand/wallpaper.jpg" alt="" fetchpriority="high" />
+
+  <!-- desktop icons -->
+  <div class="icons" id="icons"></div>
+
+  <!-- windows land here -->
+  <div class="windows" id="windows"></div>
+
+  <!-- the assistant -->
+  <div class="clip" id="clip" hidden>
+    <div class="clip__bubble">
+      <button class="clip__x" id="clipX" aria-label="Close">✕</button>
+      <p id="clipText"></p>
+    </div>
+    <img class="clip__toad" src="/assets/brand/logo.png" alt="Toad assistant" />
+  </div>
+
+  <!-- taskbar -->
+  <div class="taskbar" id="taskbar">
+    <button class="start" id="startBtn" aria-haspopup="true" aria-expanded="false">
+      <img src="/assets/brand/logo.png" alt="" /><span>start</span>
     </button>
-    <p class="boot__hint">sound on · best experienced loud</p>
-  </div>
-  <div class="boot__collapse" id="bootCollapse"></div>
-</div>
-
-<!-- ═══════════════ GLOBAL FX LAYERS ═══════════════ -->
-<canvas class="fx-spores" id="spores" aria-hidden="true"></canvas>
-<div class="fx-grain" aria-hidden="true"></div>
-<div class="fx-scan" aria-hidden="true"></div>
-<div class="fx-vignette" aria-hidden="true"></div>
-<div class="fx-flash" id="fxFlash" aria-hidden="true"></div>
-
-<div class="fly" id="fly" aria-hidden="true"></div>
-
-<div class="tapebar" aria-hidden="true"><i id="tapebarFill"></i></div>
-
-<div class="toast" id="toast" role="status" aria-live="polite"></div>
-
-<!-- ═══════════════ NAV ═══════════════ -->
-<header class="nav" id="nav">
-  <a class="nav__brand" href="#top" data-magnet>
-    <span class="nav__mark"><img src="/assets/brand/logo.png" alt="El Toad Pepe" /></span>
-    <span class="nav__word"><em>$</em>TOAD</span>
-  </a>
-
-  <nav class="nav__links" id="navLinks">
-    <a href="#origin">Origin</a>
-    <a href="#broadcast">The Tape</a>
-    <a href="#lore">Lore</a>
-    <a href="#memes">Memes</a>
-    <a href="#tokenomics">Tokenomics</a>
-    <a href="#buy">How to Buy</a>
-  </nav>
-
-  <div class="nav__right">
-    <a class="xbtn xbtn--nav" id="navX" href="https://x.com/eltoadpepe" target="_blank" rel="noopener"
-       aria-label="Follow $TOAD on X" data-croak>
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231 5.451-6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117l11.966 15.644Z"/>
-      </svg>
-    </a>
-    <a class="btn btn--buy" href="#buy" data-magnet data-croak>
-      <span>BUY $TOAD</span>
-    </a>
-    <button class="nav__burger" id="burger" aria-label="Menu" aria-expanded="false">
-      <i></i><i></i><i></i>
-    </button>
-  </div>
-</header>
-
-<main id="top">
-
-<!-- ═══════════════ HERO ═══════════════ -->
-<section class="hero" id="hero">
-  <div class="hero__video">
-    <video id="heroVideo" muted loop playsinline disablepictureinpicture
-           preload="metadata" poster="/assets/posters/poster-intro.jpg"></video>
-  </div>
-  <div class="hero__grade"></div>
-  <div class="hero__rgb" aria-hidden="true"></div>
-
-  <div class="hero__osd hero__osd--tl">
-    <span class="rec"><i></i>REC</span>
-    <span class="osd-ch">CH 88</span>
-  </div>
-  <div class="hero__osd hero__osd--tr">
-    <span class="osd-tc" id="timecode">00:00:00:00</span>
-    <span class="osd-sp">SP · PAL</span>
-  </div>
-  <div class="hero__osd hero__osd--bl">
-    <span class="osd-dim">ARCHIVO · BUENOS AIRES · 1988</span>
-  </div>
-
-  <div class="hero__content">
-    <p class="hero__kicker" data-split>THE FIRST PEPE WAS A TOAD</p>
-
-    <h1 class="hero__title">
-      <span class="wordmark" data-glitch="$TOAD">
-        <em>$</em>TOAD
-      </span>
-    </h1>
-
-    <p class="hero__sub">
-      Seventeen years before the internet frog, a green toad in a
-      <b class="hl-red">red shirt</b> and <b class="hl-yellow">yellow suspenders</b>
-      walked onto Argentine television. He never left.
-      <br />Now he's on <b class="hl-green">Solana</b>.
-    </p>
-
-    <div class="hero__cta">
-      <a class="btn btn--primary" id="btnBuy" href="#buy" data-magnet data-croak>
-        <span class="btn__label">BUY THE TOAD</span>
-        <span class="btn__glow"></span>
-      </a>
-      <a class="btn btn--ghost" href="#broadcast" data-magnet data-croak>
-        <span>▶ PLAY THE TAPE</span>
-      </a>
-      <a class="xbtn xbtn--hero" id="heroX" href="https://x.com/eltoadpepe" target="_blank" rel="noopener"
-         aria-label="Follow $TOAD on X" data-magnet data-croak>
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231 5.451-6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117l11.966 15.644Z"/>
-        </svg>
-      </a>
-    </div>
-
-    <button class="ca" id="caBar" type="button" data-croak>
-      <span class="ca__label">CONTRACT</span>
-      <span class="ca__value" id="caValue">loading…</span>
-      <span class="ca__copy">COPY</span>
-    </button>
-  </div>
-
-  <a class="hero__scroll" href="#origin" aria-label="Scroll down">
-    <span></span>
-    <i>SCROLL</i>
-  </a>
-</section>
-
-<!-- ═══════════════ TICKER ═══════════════ -->
-<div class="ticker ticker--a" aria-hidden="true">
-  <div class="ticker__track" data-marquee data-speed="34">
-    <span>SINCE 1988</span><b>◆</b><span>THE ORIGINAL GREEN</span><b>◆</b>
-    <span>926,000,000 VIEWS</span><b>◆</b><span>NO PRESALE</span><b>◆</b>
-    <span>RIBBIT</span><b>◆</b><span>MINT REVOKED</span><b>◆</b>
-    <span>EL TOAD PEPE</span><b>◆</b><span>0/0 TAX</span><b>◆</b>
-  </div>
-</div>
-
-<!-- ═══════════════ ORIGIN ═══════════════ -->
-<section class="origin section" id="origin">
-  <div class="origin__grid">
-    <div class="origin__media" data-reveal>
-      <div class="polaroid polaroid--a" data-tilt>
-        <img src="/assets/memes/thumb/torch.jpg" alt="El Toad Pepe passing the torch to the internet frog" loading="lazy" />
-        <p>THE HANDOFF · 2005</p>
-      </div>
-      <div class="polaroid polaroid--b" data-tilt>
-        <img src="/assets/memes/thumb/timekeeper.jpg" alt="El Toad Pepe holding a pocket watch" loading="lazy" />
-        <p>WE WERE EARLY</p>
-      </div>
-      <div class="stamp stamp--origin">
-        <span>ORIGINAL</span><b>1988</b>
-      </div>
-    </div>
-
-    <div class="origin__text">
-      <p class="eyebrow" data-reveal>01 — ORIGIN STORY</p>
-      <h2 class="h2" data-reveal>
-        Everyone copied<br />the <span class="ink-green">wrong frog</span>.
-      </h2>
-      <div class="prose" data-reveal>
-        <p>
-          In <b>1988</b>, on Carlitos Balá's children's show, a felt toad in a red shirt
-          and yellow suspenders hopped onto screen. Kids across Latin America grew up with him.
-          He had a name long before the internet gave one to anybody else.
-        </p>
-        <p>
-          The internet's frog showed up in <b>2005</b> — seventeen years late.
-          The song went on to rack up <b>926 million views</b>. The character became folklore.
-          And then, quietly, he became a ticker.
-        </p>
-        <p class="prose__pull">
-          Not a derivative. Not a fork. <span>The source.</span>
-        </p>
-      </div>
-      <div class="origin__facts" data-reveal>
-        <div><b data-count="1988" data-plain>1988</b><span>First appearance</span></div>
-        <div><b data-count="926">0</b><span>Million views</span></div>
-        <div><b data-count="17">0</b><span>Years before the frog</span></div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ═══════════════ BROADCAST / THE TAPE ═══════════════ -->
-<section class="broadcast section" id="broadcast">
-  <div class="broadcast__head">
-    <p class="eyebrow" data-reveal>02 — THE TAPES</p>
-    <h2 class="h2 center" data-reveal>Six channels, <span class="ink-green">one toad</span></h2>
-    <p class="lede center" data-reveal>Restored from the archive. Turn the dial, turn your sound on.</p>
-  </div>
-
-  <div class="tv-wrap" data-reveal>
-    <div class="tv" id="tv">
-      <div class="tv__body">
-        <div class="tv__screen" id="tvScreen">
-          <video id="tapeVideo" playsinline preload="none" poster="/assets/posters/poster-intro.jpg"></video>
-          <canvas class="tv__static" id="tvStatic" aria-hidden="true"></canvas>
-          <div class="tv__glass"></div>
-          <div class="tv__scan"></div>
-          <div class="tv__osd">
-            <span class="rec"><i></i><b id="tapeCh">CH 88</b> · <em id="tapeName">THE ORIGINAL</em></span>
-            <span id="tapeTime">00:00</span>
-          </div>
-          <button class="tv__play" id="tapePlay" aria-label="Play the tape">
-            <svg viewBox="0 0 100 100"><polygon points="35,25 78,50 35,75" /></svg>
-            <em>PLAY TAPE</em>
-          </button>
-          <div class="tv__off" id="tvOff"></div>
-        </div>
-        <div class="tv__panel">
-          <div class="tv__brand">TOAD<span>TRON</span></div>
-          <div class="tv__knobs">
-            <button class="knob" id="knobSound" aria-label="Toggle sound"><i></i><span>VOL</span></button>
-            <button class="knob" id="knobFull" aria-label="Fullscreen"><i></i><span>SIZE</span></button>
-          </div>
-          <div class="tv__speaker" aria-hidden="true"></div>
-        </div>
-      </div>
-      <div class="tv__legs" aria-hidden="true"><i></i><i></i></div>
-    </div>
-
-    <div class="tv-side">
-      <div class="cassette" data-tilt>
-        <div class="cassette__label">
-          <b>EL TOAD PEPE</b>
-          <span>ARCHIVO · CANAL 88</span>
-        </div>
-        <div class="cassette__reels"><i></i><i></i></div>
-        <div class="cassette__strip">VHS · SP · 1988</div>
-      </div>
-      <p class="tv-side__note">
-        Six tapes pulled from the archive.<br />Pick a channel. The set does the rest.
-      </p>
+    <div class="tasks" id="tasks"></div>
+    <div class="tray">
+      <span class="tray__ico" title="Canal 88 is on air">📺</span>
+      <span class="tray__ico" title="Network: connected to the pond">🛜</span>
+      <button class="tray__ico" id="trayVol" title="Volume">🔊</button>
+      <span class="tray__clock" id="clock">--:--</span>
     </div>
   </div>
 
-  <div class="dial" data-reveal>
-    <p class="dial__head"><span>TURN THE DIAL</span><i>6 CHANNELS AVAILABLE</i></p>
-    <div class="dial__list" id="channels" role="tablist" aria-label="Channel selector"></div>
+  <!-- start menu -->
+  <div class="startmenu" id="startMenu" hidden>
+    <header class="startmenu__head">
+      <img src="/assets/brand/logo.png" alt="" /><b>Guest</b>
+    </header>
+    <div class="startmenu__cols">
+      <ul class="startmenu__left" id="startLeft"></ul>
+      <ul class="startmenu__right" id="startRight"></ul>
+    </div>
+    <footer class="startmenu__foot">
+      <button id="logOff"><i>🔒</i> Log Off</button>
+      <button id="shutDown"><i>⏻</i> Turn Off Computer</button>
+    </footer>
   </div>
-</section>
-
-<!-- ═══════════════ LORE TIMELINE ═══════════════ -->
-<section class="lore section" id="lore">
-  <div class="lore__head">
-    <p class="eyebrow" data-reveal>03 — THE RECORD</p>
-    <h2 class="h2 center" data-reveal>Thirty-eight years of <span class="ink-green">being right</span></h2>
-  </div>
-
-  <div class="lore__rail" id="loreRail">
-    <div class="lore__track" id="loreTrack">
-
-      <article class="lore-card" data-reveal>
-        <div class="lore-card__year">1988</div>
-        <div class="lore-card__img"><img src="/assets/memes/thumb/timekeeper.jpg" alt="" loading="lazy" /></div>
-        <h3>He goes on air</h3>
-        <p>A green toad in a red shirt debuts on Argentine television. Millions of kids meet him first.</p>
-      </article>
-
-      <article class="lore-card" data-reveal>
-        <div class="lore-card__year">2005</div>
-        <div class="lore-card__img"><img src="/assets/memes/thumb/torch.jpg" alt="" loading="lazy" /></div>
-        <h3>The copy arrives</h3>
-        <p>An internet frog shows up seventeen years later and takes the crown. History gets the order wrong.</p>
-      </article>
-
-      <article class="lore-card" data-reveal>
-        <div class="lore-card__year">2013</div>
-        <div class="lore-card__img"><img src="/assets/memes/thumb/cashfloor.jpg" alt="" loading="lazy" /></div>
-        <h3>926,000,000</h3>
-        <p>The song detonates. Nine hundred and twenty-six million views. Certified folklore, no marketing budget.</p>
-      </article>
-
-      <article class="lore-card" data-reveal>
-        <div class="lore-card__year">2023</div>
-        <div class="lore-card__img"><img src="/assets/memes/thumb/greenwall.jpg" alt="" loading="lazy" /></div>
-        <h3>Frogs eat the market</h3>
-        <p>Amphibians take over crypto. Every one of them descends from a toad nobody credited.</p>
-      </article>
-
-      <article class="lore-card lore-card--now" data-reveal>
-        <div class="lore-card__year">2026</div>
-        <div class="lore-card__img"><img src="/assets/memes/thumb/chains.jpg" alt="" loading="lazy" /></div>
-        <h3>The record is corrected</h3>
-        <p>$TOAD launches fair on Solana. Mint revoked. Freeze revoked. No presale, no team bag.</p>
-        <span class="lore-card__flag">YOU ARE HERE</span>
-      </article>
-
-    </div>
-
-    <div class="scrub" id="loreScrub">
-      <button class="scrub__arrow" id="loreLeft" aria-label="Previous year">‹</button>
-      <div class="scrub__rail" id="loreRailBar">
-        <span class="scrub__fill" id="loreFill"></span>
-        <span class="scrub__thumb" id="loreThumb" role="scrollbar" tabindex="0"
-              aria-controls="loreTrack" aria-orientation="horizontal" aria-label="Timeline position"></span>
-      </div>
-      <button class="scrub__arrow" id="loreRight" aria-label="Next year">›</button>
-      <span class="scrub__hint">DRAG · SCROLL · SWIPE</span>
-    </div>
-  </div>
-</section>
-
-<!-- ═══════════════ MEME STRIPS ═══════════════ -->
-<section class="memes" id="memes">
-  <div class="memes__head section">
-    <p class="eyebrow" data-reveal>04 — THE ARCHIVE</p>
-    <h2 class="h2 center" data-reveal><span class="ink-green">Twenty</span> pieces of evidence</h2>
-    <p class="lede center" data-reveal>Click anything. It gets bigger. That's the whole feature.</p>
-  </div>
-
-  <div class="strips" id="strips">
-    <div class="strip">
-      <div class="strip__track" data-marquee data-speed="52" data-dir="1" data-row="0"></div>
-    </div>
-    <div class="strip strip--rev">
-      <div class="strip__track" data-marquee data-speed="64" data-dir="-1" data-row="1"></div>
-    </div>
-    <div class="strip">
-      <div class="strip__track" data-marquee data-speed="46" data-dir="1" data-row="2"></div>
-    </div>
-  </div>
-
-  <div class="memes__foot">
-    <button class="btn btn--ghost" id="shuffleBtn" data-magnet data-croak><span>🎲 SHUFFLE THE ARCHIVE</span></button>
-  </div>
-</section>
-
-<!-- ═══════════════ TOKENOMICS ═══════════════ -->
-<section class="tok section" id="tokenomics">
-  <div class="tok__head">
-    <p class="eyebrow" data-reveal>05 — THE NUMBERS</p>
-    <h2 class="h2 center" data-reveal>Boring on purpose</h2>
-    <p class="lede center" data-reveal>No tax. No unlocks. No 47-page whitepaper. A toad and a supply.</p>
-  </div>
-
-  <div class="tok__grid">
-    <div class="tok-card tok-card--wide" data-reveal data-tilt>
-      <span class="tok-card__k">TOTAL SUPPLY</span>
-      <b class="tok-card__v"><span data-count="1000">0</span>,000,000</b>
-      <span class="tok-card__note">One billion. Fixed forever.</span>
-    </div>
-    <div class="tok-card" data-reveal data-tilt>
-      <span class="tok-card__k">TAX</span>
-      <b class="tok-card__v">0<em>/</em>0</b>
-      <span class="tok-card__note">Buy. Sell. Nothing skimmed.</span>
-    </div>
-    <div class="tok-card" data-reveal data-tilt>
-      <span class="tok-card__k">CHAIN</span>
-      <b class="tok-card__v">SOL</b>
-      <span class="tok-card__note">Fast, cheap, green.</span>
-    </div>
-    <div class="tok-card" data-reveal data-tilt>
-      <span class="tok-card__k">LAUNCH</span>
-      <b class="tok-card__v">FAIR</b>
-      <span class="tok-card__note">pump.fun. Same door as you.</span>
-    </div>
-  </div>
-
-  <div class="seals">
-    <div class="seal" data-reveal>
-      <svg viewBox="0 0 24 24" class="seal__ico"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Zm-1 14-4-4 1.4-1.4L11 13.2l5.6-5.6L18 9l-7 7Z"/></svg>
-      <b>MINT REVOKED</b><span>No new $TOAD can ever be created.</span>
-    </div>
-    <div class="seal" data-reveal>
-      <svg viewBox="0 0 24 24" class="seal__ico"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Zm-1 14-4-4 1.4-1.4L11 13.2l5.6-5.6L18 9l-7 7Z"/></svg>
-      <b>FREEZE REVOKED</b><span>Nobody can lock your wallet. Not even us.</span>
-    </div>
-    <div class="seal" data-reveal>
-      <svg viewBox="0 0 24 24" class="seal__ico"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Zm-1 14-4-4 1.4-1.4L11 13.2l5.6-5.6L18 9l-7 7Z"/></svg>
-      <b>NO PRESALE</b><span>No team allocation. No insider round.</span>
-    </div>
-  </div>
-</section>
-
-<!-- ═══════════════ HOW TO BUY ═══════════════ -->
-<section class="buy section" id="buy">
-  <div class="buy__head">
-    <p class="eyebrow" data-reveal>06 — HOW TO BUY</p>
-    <h2 class="h2 center" data-reveal>Three steps, <span class="ink-green">one toad</span></h2>
-  </div>
-
-  <div class="buy__steps">
-    <article class="step" data-reveal data-tilt>
-      <span class="step__n">01</span>
-      <h3>Open pump.fun</h3>
-      <p>Browser or the mobile app on iOS / Android. Connect a Solana wallet — Phantom, Solflare, whatever you already trust.</p>
-    </article>
-    <article class="step" data-reveal data-tilt>
-      <span class="step__n">02</span>
-      <h3>Load some SOL</h3>
-      <p>Transfer from an exchange, buy with a card, or bridge. Leave a little for fees — they're pennies.</p>
-    </article>
-    <article class="step" data-reveal data-tilt>
-      <span class="step__n">03</span>
-      <h3>Swap for $TOAD</h3>
-      <p>Paste the contract, confirm it matches the one on this page, and buy. Then go be loud about it.</p>
-    </article>
-  </div>
-
-  <div class="buy__cta" data-reveal>
-    <a class="btn btn--primary btn--xl" id="buyLink" href="#" target="_blank" rel="noopener" data-magnet data-croak>
-      <span class="btn__label">BUY ON PUMP.FUN</span>
-      <span class="btn__glow"></span>
-    </a>
-    <button class="btn btn--ghost" id="caBar2" type="button" data-magnet data-croak><span>📋 COPY CONTRACT</span></button>
-  </div>
-</section>
-
-<!-- ═══════════════ COMMUNITY ═══════════════ -->
-<section class="comm section" id="community">
-  <div class="comm__inner">
-    <div class="comm__left">
-      <p class="eyebrow" data-reveal>07 — THE POND</p>
-      <h2 class="h2" data-reveal>It's a community,<br />not a <span class="ink-green">roadmap</span>.</h2>
-      <p class="lede" data-reveal>
-        No promises, no quarterly milestones, no fake partnerships.
-        Just a very old toad and the people who never forgot him.
-      </p>
-
-      <div class="warn" data-reveal>
-        <b>⚠ STAY SAFE</b>
-        <p>We never DM first. We never ask for your seed phrase. We never run giveaways that need you to send SOL first. Verify the contract on this page before every buy.</p>
-      </div>
-    </div>
-
-    <div class="comm__links">
-      <a class="link-card" id="lnkX" href="#" target="_blank" rel="noopener" data-reveal data-tilt data-croak>
-        <span class="link-card__ico">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231 5.451-6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117l11.966 15.644Z"/>
-          </svg>
-        </span>
-        <b>Follow on X</b><span>@eltoadpepe</span>
-      </a>
-      <a class="link-card" id="lnkCommunity" href="#" target="_blank" rel="noopener" data-reveal data-tilt data-croak>
-        <span class="link-card__ico">◎</span>
-        <b>X Community</b><span>Join the pond</span>
-      </a>
-      <a class="link-card" id="lnkChart" href="#" target="_blank" rel="noopener" data-reveal data-tilt data-croak>
-        <span class="link-card__ico">📈</span>
-        <b>Live Chart</b><span>Dexscreener</span>
-      </a>
-      <a class="link-card" id="lnkScan" href="#" target="_blank" rel="noopener" data-reveal data-tilt data-croak>
-        <span class="link-card__ico">🔍</span>
-        <b>Verify</b><span>Solscan</span>
-      </a>
-    </div>
-  </div>
-</section>
-
 </main>
 
-<!-- ═══════════════ FOOTER ═══════════════ -->
-<footer class="foot">
-  <div class="foot__marquee" aria-hidden="true">
-    <div class="foot__track" data-marquee data-speed="26">
-      <span>$TOAD</span><i>🐸</i><span>SINCE 1988</span><i>🐸</i><span>THE FIRST PEPE</span><i>🐸</i>
-      <span>$TOAD</span><i>🐸</i><span>SINCE 1988</span><i>🐸</i><span>THE FIRST PEPE</span><i>🐸</i>
+<div class="scanlines" id="scanlines" aria-hidden="true"></div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     APP CONTENT — cloned into windows by the window manager
+     ═══════════════════════════════════════════════════════════════ -->
+
+<template id="app-explorer">
+  <div class="ie">
+    <div class="ie__menubar">
+      <span>File</span><span>Edit</span><span>View</span><span>Favorites</span><span>Tools</span><span>Help</span>
+    </div>
+    <div class="ie__toolbar">
+      <button class="ie__tb" data-nav="back">⬅ Back</button>
+      <button class="ie__tb" data-nav="fwd">➡ Forward</button>
+      <span class="ie__sep"></span>
+      <button class="ie__tb" data-open="canal88">📺 Canal 88</button>
+      <button class="ie__tb" data-open="memes">🖼 Memes</button>
+      <button class="ie__tb" data-open="buy">💸 Buy</button>
+    </div>
+    <div class="ie__addr">
+      <label>Address</label>
+      <div class="ie__url"><img src="/assets/brand/icon-32.png" alt="" /><span>http://www.eltoadpepe.os/index.html</span></div>
+      <button class="ie__go">Go</button>
+    </div>
+
+    <div class="ie__brandbar">
+      <img src="/assets/brand/logo.png" alt="" />
+      <b><small>Ultra rare</small>El Toad Pepe<span>OG</span></b>
+      <em>Canal 88 is back on air ▸</em>
+    </div>
+
+    <div class="ie__crumb">ToadOS Original Edition | Home</div>
+
+    <div class="ie__body">
+      <aside class="ie__side">
+        <h4>Important Links</h4>
+        <a data-cfg="x" href="#" target="_blank" rel="noopener">X / Twitter</a>
+        <a data-cfg="community" href="#" target="_blank" rel="noopener">X Community</a>
+        <a data-cfg="buy" href="#" target="_blank" rel="noopener">pump.fun</a>
+        <a data-cfg="chart" href="#" target="_blank" rel="noopener">Dexscreener</a>
+        <a data-cfg="scan" href="#" target="_blank" rel="noopener">Solscan</a>
+
+        <h4>Historical Resources</h4>
+        <a href="#" data-open="lore">The Record (1988—2026)</a>
+        <a href="#" data-open="canal88">Archive Footage</a>
+        <a href="#" data-open="memes">Evidence Folder</a>
+
+        <h4>Buy $TOAD</h4>
+        <a href="#" data-open="buy">How to Buy</a>
+        <a href="#" data-open="contract">Contract Address</a>
+
+        <div class="ie__adbox">
+          <b>1,000,000,000</b>
+          <span>total supply · 0/0 tax</span>
+        </div>
+      </aside>
+
+      <div class="ie__main">
+        <h3 class="ie__h">History of the Original Toad Memecoin</h3>
+
+        <div class="ie__hero">
+          <img src="/assets/memes/torch.jpg" alt="El Toad Pepe passing the torch to the internet frog" />
+          <p>THE HANDOFF · 2005 — seventeen years too late</p>
+        </div>
+
+        <h3 class="ie__h">About $TOAD</h3>
+        <div class="ie__text">
+          <p>
+            In <b>1988</b>, on Carlitos Balá's children's show, a felt toad in a
+            <b class="r">red shirt</b> and <b class="y">yellow suspenders</b> hopped onto
+            Argentine television. Kids across Latin America grew up with him. He had a name
+            long before the internet gave one to anybody else.
+          </p>
+          <p>
+            The internet's frog turned up in <b>2005</b> — seventeen years late. The song went
+            on to rack up <b>926 million views</b>. The character became folklore. And then,
+            quietly, he became a ticker.
+          </p>
+          <p class="ie__pull">Not a derivative. Not a fork. <span>The source.</span></p>
+          <p>
+            $TOAD is a plain Solana token, fair-launched on pump.fun. Mint authority revoked,
+            freeze authority revoked, no presale, no team allocation. There is no roadmap
+            because there is nothing to promise — just a very old toad and the people who
+            never forgot him.
+          </p>
+        </div>
+
+        <table class="ie__facts">
+          <tr><th>First appearance</th><td>1988 · Argentine television</td></tr>
+          <tr><th>Years before the frog</th><td>17</td></tr>
+          <tr><th>Views on the record</th><td>926,000,000</td></tr>
+          <tr><th>Chain</th><td>Solana</td></tr>
+          <tr><th>Supply</th><td>1,000,000,000 · fixed</td></tr>
+          <tr><th>Tax</th><td>0 / 0</td></tr>
+        </table>
+      </div>
+
+      <aside class="ie__side ie__side--r">
+        <h4>Our Apps</h4>
+        <a href="#" data-open="canal88">Canal 88 Player</a>
+        <a href="#" data-open="memes">Meme Archive</a>
+        <a href="#" data-open="tokenomics">Tokenomics.xls</a>
+        <a href="#" data-open="buy">HowToBuy.txt</a>
+        <a href="#" data-open="lore">Lore.hlp</a>
+        <a href="#" data-open="safety">ReadMe.txt</a>
+
+        <h4>Verify</h4>
+        <a data-cfg="scan" href="#" target="_blank" rel="noopener">Solscan</a>
+        <a data-cfg="chart" href="#" target="_blank" rel="noopener">Dexscreener</a>
+        <a data-cfg="buy" href="#" target="_blank" rel="noopener">pump.fun</a>
+      </aside>
     </div>
   </div>
+</template>
 
-  <div class="foot__inner">
-    <div class="foot__brand">
-      <img src="/assets/brand/logo.png" alt="" />
-      <div>
-        <b>EL TOAD PEPE</b>
-        <span>Canal 88 · Archivo Nacional</span>
+<template id="app-canal88">
+  <div class="wmp">
+    <div class="wmp__screen">
+      <video id="tapeVideo" playsinline preload="none" poster="/assets/posters/poster-intro.jpg"></video>
+      <canvas class="wmp__static" id="tvStatic" aria-hidden="true"></canvas>
+      <div class="wmp__osd">
+        <span class="rec"><i></i><b id="tapeCh">CH 88</b> · <em id="tapeName">THE ORIGINAL</em></span>
+        <span id="tapeTime">00:00</span>
+      </div>
+      <button class="wmp__play" id="tapePlay" aria-label="Play">
+        <svg viewBox="0 0 100 100"><polygon points="35,25 78,50 35,75"/></svg>
+        <em>PLAY TAPE</em>
+      </button>
+    </div>
+    <div class="wmp__controls">
+      <button class="wmp__btn" id="wmpPlay" aria-label="Play or pause">▶</button>
+      <button class="wmp__btn" id="wmpPrev" aria-label="Previous channel">⏮</button>
+      <button class="wmp__btn" id="wmpNext" aria-label="Next channel">⏭</button>
+      <div class="wmp__seek"><i id="wmpSeek"></i></div>
+      <button class="wmp__btn" id="wmpMute" aria-label="Mute">🔊</button>
+      <button class="wmp__btn" id="wmpFull" aria-label="Fullscreen">⛶</button>
+    </div>
+    <div class="wmp__list">
+      <div class="wmp__listhead">Playlist — Archivo Nacional</div>
+      <ul id="channels"></ul>
+    </div>
+  </div>
+</template>
+
+<template id="app-memes">
+  <div class="folder">
+    <div class="folder__bar">
+      <button class="ie__tb" id="memeShuffle">🎲 Shuffle</button>
+      <span class="folder__count" id="memeCount"></span>
+    </div>
+    <div class="folder__grid" id="memeGrid"></div>
+  </div>
+</template>
+
+<template id="app-viewer">
+  <div class="viewer">
+    <div class="viewer__stage"><img id="viewerImg" alt="" /></div>
+    <div class="viewer__bar">
+      <button class="xp-btn" id="viewerPrev">◀ Previous</button>
+      <span id="viewerCap"></span>
+      <button class="xp-btn" id="viewerNext">Next ▶</button>
+    </div>
+  </div>
+</template>
+
+<template id="app-tokenomics">
+  <div class="sheet">
+    <div class="sheet__bar"><b>Tokenomics.xls</b> — read only</div>
+    <table class="sheet__grid">
+      <tr><th></th><th>A</th><th>B</th></tr>
+      <tr><th>1</th><td class="k">Total supply</td><td class="v">1,000,000,000</td></tr>
+      <tr><th>2</th><td class="k">Buy tax</td><td class="v">0%</td></tr>
+      <tr><th>3</th><td class="k">Sell tax</td><td class="v">0%</td></tr>
+      <tr><th>4</th><td class="k">Chain</td><td class="v">Solana</td></tr>
+      <tr><th>5</th><td class="k">Launch</td><td class="v">Fair, on pump.fun</td></tr>
+      <tr><th>6</th><td class="k">Presale</td><td class="v">None</td></tr>
+      <tr><th>7</th><td class="k">Team allocation</td><td class="v">None</td></tr>
+      <tr><th>8</th><td class="k">Mint authority</td><td class="v ok">Revoked ✓</td></tr>
+      <tr><th>9</th><td class="k">Freeze authority</td><td class="v ok">Revoked ✓</td></tr>
+    </table>
+    <p class="sheet__note">
+      Mint revoked means no new $TOAD can ever be created. Freeze revoked means nobody can
+      lock your wallet — not even us. Verify both yourself on Solscan before you buy.
+    </p>
+    <div class="sheet__tabs"><b>Supply</b><span>Sheet2</span><span>Sheet3</span></div>
+  </div>
+</template>
+
+<template id="app-buy">
+  <div class="pad">
+    <div class="pad__menubar"><span>File</span><span>Edit</span><span>Format</span><span>Help</span></div>
+    <div class="pad__body">
+<pre>HOW TO BUY $TOAD
+================
+
+1. OPEN PUMP.FUN
+   Browser or the mobile app on iOS / Android. Connect a Solana
+   wallet — Phantom, Solflare, whatever you already trust.
+
+2. LOAD SOME SOL
+   Transfer from an exchange, buy with a card, or bridge.
+   Leave a little for fees. They are pennies.
+
+3. SWAP FOR $TOAD
+   Paste the contract, confirm it matches the one on this page,
+   and buy. Then go and be loud about it.
+
+CONTRACT
+--------
+<span id="padCA">loading…</span>
+
+  ! Always verify the contract before every buy. We never DM
+    first, never ask for a seed phrase, and never run giveaways
+    that need you to send SOL first.
+</pre>
+      <div class="pad__actions">
+        <a class="xp-btn xp-btn--go" id="padBuy" href="#" target="_blank" rel="noopener">Buy on pump.fun</a>
+        <button class="xp-btn" id="padCopy">Copy contract</button>
       </div>
     </div>
-
-    <p class="foot__disc">
-      $TOAD is a meme with no intrinsic value and no promise of returns —
-      <b>a lily pad, not a lifeboat.</b>
-      Nothing here is financial advice. Crypto is volatile; only risk what you can
-      comfortably lose. Do your own research and always verify the contract address.
-    </p>
-
-    <div class="foot__meta">
-      <span>© 2026 The Pond</span>
-      <span class="foot__egg" id="eggHint">try typing <b>TOAD</b></span>
-    </div>
-
-    <a class="devcred" href="https://t.me/maximus_max02" target="_blank" rel="noopener" data-croak>
-      <span>Web dev:</span>
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M11.94 2.06A9.94 9.94 0 1 0 21.88 12 9.95 9.95 0 0 0 11.94 2.06Zm4.63 6.84-1.55 7.31c-.11.52-.42.64-.85.4l-2.35-1.73-1.13 1.09c-.13.13-.24.24-.48.24l.17-2.42 4.4-3.98c.19-.17-.04-.27-.3-.1l-5.44 3.43-2.34-.73c-.51-.16-.52-.51.11-.76l9.14-3.52c.42-.15.79.1.65.77Z"/>
-      </svg>
-      <b>@maximus_max02</b>
-    </a>
   </div>
-</footer>
+</template>
 
-<!-- ═══════════════ LIGHTBOX ═══════════════ -->
-<div class="lb" id="lightbox" role="dialog" aria-modal="true" aria-label="Meme viewer">
-  <button class="lb__close" id="lbClose" aria-label="Close">✕</button>
-  <button class="lb__nav lb__nav--prev" id="lbPrev" aria-label="Previous">‹</button>
-  <button class="lb__nav lb__nav--next" id="lbNext" aria-label="Next">›</button>
-  <figure class="lb__figure">
-    <div class="lb__frame"><img id="lbImg" alt="" /></div>
-    <figcaption><b id="lbCap"></b><span id="lbIdx"></span></figcaption>
-  </figure>
-</div>
+<template id="app-lore">
+  <div class="help">
+    <div class="help__bar">
+      <button class="xp-btn">Contents</button><button class="xp-btn">Index</button><button class="xp-btn">Back</button>
+      <button class="xp-btn">Print</button>
+    </div>
+    <div class="help__body">
+      <h2>The Record</h2>
+      <p class="help__lede">Thirty-eight years of being right, in chronological order.</p>
+
+      <div class="help__row">
+        <img src="/assets/memes/thumb/timekeeper.jpg" alt="" />
+        <div><h3>1988 — He goes on air</h3>
+          <p>A green toad in a red shirt debuts on Argentine television. Millions of kids meet him first.</p></div>
+      </div>
+      <div class="help__row">
+        <img src="/assets/memes/thumb/torch.jpg" alt="" />
+        <div><h3>2005 — The copy arrives</h3>
+          <p>An internet frog shows up seventeen years later and takes the crown. History gets the order wrong.</p></div>
+      </div>
+      <div class="help__row">
+        <img src="/assets/memes/thumb/cashfloor.jpg" alt="" />
+        <div><h3>2013 — 926,000,000</h3>
+          <p>The song detonates. Nine hundred and twenty-six million views. Certified folklore, no marketing budget.</p></div>
+      </div>
+      <div class="help__row">
+        <img src="/assets/memes/thumb/greenwall.jpg" alt="" />
+        <div><h3>2023 — Frogs eat the market</h3>
+          <p>Amphibians take over crypto. Every one of them descends from a toad nobody credited.</p></div>
+      </div>
+      <div class="help__row help__row--now">
+        <img src="/assets/memes/thumb/chains.jpg" alt="" />
+        <div><h3>2026 — The record is corrected</h3>
+          <p>$TOAD launches fair on Solana. Mint revoked. Freeze revoked. No presale, no team bag.</p>
+          <b>You are here</b></div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<template id="app-contract">
+  <div class="dlg">
+    <div class="dlg__row">
+      <span class="dlg__ico">🔎</span>
+      <div>
+        <p class="dlg__lead">Contract address</p>
+        <p class="dlg__ca" id="dlgCA">loading…</p>
+        <p class="dlg__warn">Verify this against Solscan and the official X account before every buy.
+          A wrong address costs real money.</p>
+      </div>
+    </div>
+    <div class="dlg__btns">
+      <button class="xp-btn xp-btn--go" id="dlgCopy">Copy</button>
+      <a class="xp-btn" id="dlgScan" href="#" target="_blank" rel="noopener">Open Solscan</a>
+      <button class="xp-btn" data-close>Close</button>
+    </div>
+  </div>
+</template>
+
+<template id="app-safety">
+  <div class="pad">
+    <div class="pad__menubar"><span>File</span><span>Edit</span><span>Format</span><span>Help</span></div>
+    <div class="pad__body">
+<pre>READ ME
+=======
+
+$TOAD is a meme with no intrinsic value and no promise of
+returns — a lily pad, not a lifeboat.
+
+Nothing on this desktop is financial advice. Crypto is
+volatile. Only risk what you can comfortably lose. Do your
+own research, and always verify the contract address.
+
+STAY SAFE
+---------
+  * We never DM first.
+  * We never ask for your seed phrase.
+  * We never run giveaways that need you to send SOL first.
+  * There is no presale. If someone offers you one, it is
+    not us.
+
+CREDITS
+-------
+  Character   El Toad Pepe, on air since 1988
+  Broadcast   Canal 88, Archivo Nacional
+  Web dev     @maximus_max02 (Telegram)
+</pre>
+      <div class="pad__actions">
+        <a class="xp-btn" href="https://t.me/maximus_max02" target="_blank" rel="noopener">Contact the web dev</a>
+      </div>
+    </div>
+  </div>
+</template>
+
+<template id="app-bin">
+  <div class="folder">
+    <div class="folder__bar"><span class="folder__count">3 objects</span></div>
+    <div class="bin">
+      <div class="bin__item"><span>🐸</span><b>the other frog.png</b><i>Deleted 2005 — arrived 17 years late</i></div>
+      <div class="bin__item"><span>📄</span><b>roadmap.docx</b><i>Deleted — there isn't one, that's the point</i></div>
+      <div class="bin__item"><span>📄</span><b>presale_allocation.xls</b><i>Deleted — empty file, always was</i></div>
+    </div>
+  </div>
+</template>
 
 <script src="/js/main.js"></script>
 </body>
