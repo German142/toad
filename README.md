@@ -211,6 +211,17 @@ npx serve .
 Vercel picks this up as a static site with no configuration. Framework preset **Other**, leave
 build command and output directory empty.
 
+Two things about `vercel.json` worth knowing before editing it:
+
+- **It is validated against a schema, and unknown top-level keys fail the build.** JSON has no
+  comments, and a `"//"` key is not a valid escape hatch — it will be rejected outright.
+  Explanations go here in the README instead.
+- **Do not add `cleanUrls` or `trailingSlash`.** Together they redirect `/hoppytoad/` down to
+  `/hoppytoad`, and at that URL every relative path inside the game resolves against the site
+  root: `style.css` becomes `/style.css` and 404s. The game now defends itself against this
+  with a base-URL guard in its `<head>`, but there is no reason to reintroduce the problem —
+  nothing here wants pretty URLs.
+
 ## Disclaimer
 
 $TOAD is a meme with no intrinsic value and no promise of returns — a lily pad, not a lifeboat.
