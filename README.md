@@ -29,6 +29,7 @@ vercel.json           caching + security headers
 |---|---|---|
 | **Toad Explorer** | Internet Explorer 6 | The origin story, the facts table, every outbound link |
 | **Canal 88 Player** | Windows Media Player | 6 tapes with a playlist, seek bar and channel switching |
+| **Hoppy Toad** | Game | A one-button jumping game, framed from `/hoppytoad/` |
 | **Live Chart** | Embedded browser | Dexscreener's own embed, framed in a window instead of a new tab |
 | **Evidence** | Explorer folder | 20 memes as files; double-click opens **Toad Viewer** |
 | **Tokenomics.xls** | Spreadsheet | Supply, tax, revoked authorities |
@@ -121,6 +122,46 @@ actually loads (198 KB instead of 1.2 MB). Replace both, keeping the names.
 - **Type `TOAD`** anywhere.
 - On phones every window opens full-bleed and the taskbar collapses to icons; the desktop
   metaphor still holds but nothing needs dragging.
+
+## Hoppy Toad
+
+A standalone game in [`hoppytoad/`](hoppytoad/) — three files and an assets folder, no
+libraries, no CDN. It runs on its own (`hoppytoad/index.html`, works from `file://` too) and
+is framed into the desktop as an app.
+
+He does not flap. He **runs along the bank and jumps**: one hop off the ground, a second in
+mid-air. The ground is solid — landing is safe, only the reeds end a run.
+
+**The numbers are measured, not guessed.** A single hop rises ~119 px, a double at the apex
+~238 px, and a double mashed as early as the game allows ~165 px. Low reeds stop at 64 px so
+one hop always clears them; tall reeds start at 134 px — above a single hop — and stop at
+158 px, under even the worst-timed double. Every reed is therefore always clearable; the
+variety is in which hop it takes.
+
+Two things that came out of playtesting rather than planning:
+
+- **Reeds are thin (26 px).** Clearing one is not about peak height but about staying above
+  it for the whole crossing — hitbox width plus reed width. A fat obstacle is far harder than
+  a tall one, and 46 px reeds were quietly unclearable.
+- **Tall reeds get their extra run-up in front of them, not behind.** Putting the spacing
+  after meant the approach depended on whatever came before, and a tall reed could arrive
+  while you were still airborne from the last one.
+
+There is also a 5-tick lock between the two hops: mashing both at once used to fire the
+second before the first had gained any height, wasting it.
+
+Other details: fixed 1/60 s timestep with an accumulator (identical physics on a 60 Hz and a
+144 Hz panel), frame deltas clamped so a backgrounded tab cannot teleport the toad through a
+reed, obstacles pooled so the array never grows, hitbox anchored to the sprite's feet and
+about 60% of the visible body, `imageSmoothingEnabled = false` everywhere so rotation stays
+pixellated instead of turning to mush, and best score in `localStorage` behind a try/catch
+because `file://` throws.
+
+The sprite sheet is the supplied `toad_spritesheet.png` — five 240×384 cells, picked by
+vertical speed. The icon is cut from the idle cell's head, not drawn fresh.
+
+`?debug=1` exposes a read-only `window.HoppyDebug` for automated play-testing. It is not
+wired up otherwise.
 
 ## The link preview
 

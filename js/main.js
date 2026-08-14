@@ -215,6 +215,7 @@ function login() {
 const APPS = {
   explorer:   { title:'Toad Explorer',         icon:'ic-explorer',   tpl:'app-explorer',   w:1000, h:660, status:'Done — the pond', mount:mountExplorer },
   canal88:    { title:'Canal 88 Player',       icon:'ic-canal88',    tpl:'app-canal88',    w:660,  h:620, status:'6 tapes in the playlist', mount:mountPlayer },
+  hoppytoad:  { title:'Hoppy Toad',            icon:'/hoppytoad/assets/icon-192.png', tpl:'app-hoppytoad', w:430, h:700, status:'One button. He jumps.', mount:mountHoppy },
   memes:      { title:'Evidence — 20 objects', icon:'ic-memes',      tpl:'app-memes',      w:640,  h:500, status:'20 objects', mount:mountMemes },
   viewer:     { title:'Toad Viewer',           icon:'ic-viewer',     tpl:'app-viewer',     w:720,  h:600, status:'', mount:mountViewer },
   tokenomics: { title:'Tokenomics.xls',        icon:'ic-tokenomics', tpl:'app-tokenomics', w:520,  h:470, status:'Read only' },
@@ -235,6 +236,7 @@ const iconHTML = (icon, cls = 'ico') =>
 const DESKTOP_ICONS = [
   { app:'explorer',   label:'Toad Explorer' },
   { app:'canal88',    label:'Canal 88' },
+  { app:'hoppytoad',  label:'Hoppy Toad' },
   { app:'chart',      label:'Live Chart' },
   { app:'memes',      label:'Evidence' },
   { app:'tokenomics', label:'Tokenomics.xls' },
@@ -486,6 +488,7 @@ function buildStartMenu() {
   left.append(
     item('ic-explorer', 'Toad Explorer', 'The whole story', () => WM.launch('explorer')),
     item('ic-canal88',  'Canal 88 Player', '6 tapes', () => WM.launch('canal88')),
+    item('/hoppytoad/assets/icon-192.png', 'Hoppy Toad', 'One button. He jumps.', () => WM.launch('hoppytoad')),
     item('ic-memes',    'Evidence', '20 memes', () => WM.launch('memes')),
     sep(),
     item('ic-tokenomics', 'Tokenomics.xls', '', () => WM.launch('tokenomics')),
@@ -564,6 +567,16 @@ function toast(msg) {
 /* ══════════════════════════════════════════════════════════════
    7 · APP MOUNTS
    ══════════════════════════════════════════════════════════════ */
+/* The game is its own self-contained page, so it drops in as a frame. Loading
+   it only on open means the desktop never pays for it until asked, and closing
+   the window tears the whole thing down — no stray loop left running. */
+function mountHoppy(win) {
+  const frame = $('#hoppyFrame', win);
+  if (!frame.src) frame.src = '/hoppytoad/index.html';
+  /* hand it the keyboard so SPACE works without hunting for a click */
+  setTimeout(() => { try { frame.contentWindow.focus(); } catch (e) {} }, 220);
+}
+
 function mountExplorer(win) {
   $$('.ie__tb[data-nav]', win).forEach(b => b.addEventListener('click', () => Sound.blip(600, .04, .03)));
 }
