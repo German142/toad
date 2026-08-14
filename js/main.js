@@ -48,6 +48,22 @@ const MEMES = [
   { f:'tophat',        cap:'respectfully_no' },
   { f:'cheers',        cap:'cheers_to_38_years' },
   { f:'matrix',        cap:'the_green_source' },
+  { f:'diamond_hands',      cap:'diamond_hands' },
+  { f:'riding_the_bull',    cap:'riding_the_bull' },
+  { f:'command_centre',     cap:'command_centre' },
+  { f:'on_chain',           cap:'on_chain' },
+  { f:'whale_watching',     cap:'whale_watching' },
+  { f:'night_fishing',      cap:'night_fishing' },
+  { f:'harvest_season',     cap:'harvest_season' },
+  { f:'the_vault_opens',    cap:'the_vault_opens' },
+  { f:'king_of_the_pond',   cap:'king_of_the_pond' },
+  { f:'it_rains_green',     cap:'it_rains_green' },
+  { f:'flight_deck',        cap:'flight_deck' },
+  { f:'all_in',             cap:'all_in' },
+  { f:'climbing_the_chart', cap:'climbing_the_chart' },
+  { f:'green_eyes',         cap:'green_eyes' },
+  { f:'riding_the_wave',    cap:'riding_the_wave' },
+  { f:'outplaying_the_bear',cap:'outplaying_the_bear' },
 ];
 
 const $  = (s, r = document) => r.querySelector(s);
@@ -216,7 +232,9 @@ const APPS = {
   explorer:   { title:'Toad Explorer',         icon:'ic-explorer',   tpl:'app-explorer',   w:1000, h:660, status:'Done — the pond', mount:mountExplorer },
   canal88:    { title:'Canal 88 Player',       icon:'ic-canal88',    tpl:'app-canal88',    w:660,  h:620, status:'6 tapes in the playlist', mount:mountPlayer },
   hoppytoad:  { title:'Hoppy Toad',            icon:'/hoppytoad/assets/icon-192.png', tpl:'app-hoppytoad', w:430, h:700, status:'One button. He jumps.', mount:mountHoppy },
-  memes:      { title:'Evidence — 20 objects', icon:'ic-memes',      tpl:'app-memes',      w:640,  h:500, status:'20 objects', mount:mountMemes },
+  /* title and status count the array rather than hardcoding it, so adding a
+     meme is still a one-line change */
+  memes:      { title:`Evidence — ${MEMES.length} objects`, icon:'ic-memes', tpl:'app-memes', w:640, h:500, status:`${MEMES.length} objects`, mount:mountMemes },
   viewer:     { title:'Toad Viewer',           icon:'ic-viewer',     tpl:'app-viewer',     w:720,  h:600, status:'', mount:mountViewer },
   tokenomics: { title:'Tokenomics.xls',        icon:'ic-tokenomics', tpl:'app-tokenomics', w:520,  h:470, status:'Read only' },
   buy:        { title:'HowToBuy.txt — Notepad',icon:'ic-buy',        tpl:'app-buy',        w:560,  h:520, status:'', mount:mountBuy },
@@ -489,7 +507,7 @@ function buildStartMenu() {
     item('ic-explorer', 'Toad Explorer', 'The whole story', () => WM.launch('explorer')),
     item('ic-canal88',  'Canal 88 Player', '6 tapes', () => WM.launch('canal88')),
     item('/hoppytoad/assets/icon-192.png', 'Hoppy Toad', 'One button. He jumps.', () => WM.launch('hoppytoad')),
-    item('ic-memes',    'Evidence', '20 memes', () => WM.launch('memes')),
+    item('ic-memes',    'Evidence', `${MEMES.length} memes`, () => WM.launch('memes')),
     sep(),
     item('ic-tokenomics', 'Tokenomics.xls', '', () => WM.launch('tokenomics')),
     item('ic-buy',        'HowToBuy.txt', '', () => WM.launch('buy')),

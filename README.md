@@ -18,7 +18,7 @@ css/xp.css            the Luna design system — window chrome, taskbar, start m
 js/main.js            boot sequence, window manager, app logic. CONFIG lives at the top
 assets/video/         6 tapes; the player streams them on demand
 assets/posters/       a still frame per tape
-assets/memes/         20 memes, web-optimised · thumb/ holds the small copies
+assets/memes/         36 memes, web-optimised · thumb/ holds the small copies
 assets/brand/         logo, favicons, cursors, link-preview cover
 vercel.json           caching + security headers
 ```
@@ -31,7 +31,7 @@ vercel.json           caching + security headers
 | **Canal 88 Player** | Windows Media Player | 6 tapes with a playlist, seek bar and channel switching |
 | **Hoppy Toad** | Game | A one-button jumping game, framed from `/hoppytoad/` |
 | **Live Chart** | Embedded browser | Dexscreener's own embed, framed in a window instead of a new tab |
-| **Evidence** | Explorer folder | 20 memes as files; double-click opens **Toad Viewer** |
+| **Evidence** | Explorer folder | 36 memes as files; double-click opens **Toad Viewer** |
 | **Tokenomics.xls** | Spreadsheet | Supply, tax, revoked authorities |
 | **HowToBuy.txt** | Notepad | Three steps, the contract, a copy button |
 | **Lore.hlp** | Windows Help | The 1988 → 2026 timeline |
