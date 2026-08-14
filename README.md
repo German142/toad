@@ -23,7 +23,7 @@ assets/video/         5 tapes; intro.mp4 also runs behind the hero
 assets/posters/       still frame for each tape, used as the video poster
 assets/memes/         20 memes, web-optimised
 assets/memes/thumb/   smaller versions used by the strips
-assets/brand/         logo + favicons
+assets/brand/         logo, favicons, link-preview cover
 vercel.json           caching + security headers
 ```
 
@@ -62,6 +62,17 @@ screen and browser tab all follow — no code changes needed.
 
 `tall: true` switches that tile to a 3:4 portrait crop. Everything else — the strips,
 the lightbox, the counter, the shuffle — updates itself.
+
+### The link preview
+
+`assets/brand/og-cover.jpg` (1200×630) is the card X, Telegram and Discord show when someone
+pastes the link. It's the hero composed as a still: a frame of `intro.mp4`, the same gradient
+and scanlines the hero uses, and the wordmark on top.
+
+The `og:image` and `twitter:image` tags use **absolute** URLs — scrapers won't resolve a
+relative path. If the site moves off `toad.fun`, update the domain in those two tags and in
+`og:url`. Scrapers cache aggressively, so use X's Card Validator or Telegram's `@WebpageBot`
+to force a refresh after changing the image.
 
 ### Adding a channel
 
