@@ -46,12 +46,12 @@ const MEMES = [
    /assets/posters, add a line here. That's the whole procedure.
    ───────────────────────────────────────────────────────────── */
 const CHANNELS = [
-  { ch: '88', name: 'THE ORIGINAL', tag: 'ARCHIVO 1988', file: 'intro.mp4',              poster: 'poster-intro.jpg'  },
-  { ch: '89', name: 'THE ARENA',    tag: 'EMBLEM',       file: 'arena4_emblem.mp4',      poster: 'poster-arena.jpg'  },
-  { ch: '90', name: 'LASER GRID',   tag: 'HEIST II',     file: 'heist2_lasers.mp4',      poster: 'poster-lasers.jpg' },
-  { ch: '91', name: 'THE VAULT',    tag: 'HEIST III',    file: 'heist3_alarm.mp4',       poster: 'poster-vault.jpg'  },
-  { ch: '92', name: 'THE SOURCE',   tag: 'GREEN CODE',   file: 'TOAD_matrix_4_web.mp4',  poster: 'poster-source.jpg' },
-  { ch: '93', name: 'GOLDEN LIGHT', tag: 'AFTERMATH II', file: 'aftermath2_goldenlight.mp4', poster: 'poster-march.jpg' },
+  { ch: '88', name: 'THE ORIGINAL', tag: 'ARCHIVO 1988', file: 'intro',                  poster: 'poster-intro.jpg'  },
+  { ch: '89', name: 'THE ARENA',    tag: 'EMBLEM',       file: 'arena4_emblem',          poster: 'poster-arena.jpg'  },
+  { ch: '90', name: 'LASER GRID',   tag: 'HEIST II',     file: 'heist2_lasers',          poster: 'poster-lasers.jpg' },
+  { ch: '91', name: 'THE VAULT',    tag: 'HEIST III',    file: 'heist3_alarm',           poster: 'poster-vault.jpg'  },
+  { ch: '92', name: 'THE SOURCE',   tag: 'GREEN CODE',   file: 'TOAD_matrix_4_web',      poster: 'poster-source.jpg' },
+  { ch: '93', name: 'GOLDEN LIGHT', tag: 'AFTERMATH II', file: 'aftermath2_goldenlight', poster: 'poster-march.jpg'  },
 ];
 
 const $  = (s, r = document) => r.querySelector(s);
@@ -68,7 +68,10 @@ const SAVE_DATA = navigator.connection?.saveData === true;
 const SLOW_NET  = /^(slow-2g|2g|3g)$/.test(navigator.connection?.effectiveType || '');
 const CORES     = navigator.hardwareConcurrency || 4;
 const LITE      = REDUCED || SAVE_DATA || SLOW_NET || CORES <= 4 || COARSE;
-const NO_HERO_VIDEO = REDUCED || SAVE_DATA || SLOW_NET || CORES <= 2;
+/* Deliberately *not* keyed to SLOW_NET: browsers report "3g" on plenty of
+   healthy connections, and the buffering gate below measures what actually
+   happens instead of trusting the label. */
+const NO_HERO_VIDEO = REDUCED || SAVE_DATA || CORES <= 2;
 
 /* Core count is a poor proxy for how a machine actually feels — a four-core
    laptop with a decent GPU sails through this, an eight-core one with weak
@@ -198,6 +201,10 @@ function toast(msg) {
   }
   if (!REDUCED) noise(); else ctx.fillStyle = '#000', ctx.fillRect(0, 0, cv.width, cv.height);
 
+  // Buffer the hero footage behind the tuning screen instead of after it.
+  // Deferred by a tick so the rest of this module finishes evaluating first.
+  setTimeout(() => primeHeroVideo(), 0);
+
   const lines = [
     'TUNING SIGNAL…',
     'CANAL 88 — ARCHIVO NACIONAL',
@@ -242,10 +249,54 @@ function toast(msg) {
 const heroVideo = $('#heroVideo');
 let heroOnScreen = true;
 let heroBanned = NO_HERO_VIDEO;
+let heroReady = false;
+
+/* ── buffering ──
+   Locally the file is on disk and plays instantly; over a CDN it is a real
+   download, and calling play() on an empty buffer gives you a slideshow.
+   So: start fetching during the boot sequence — that screen exists to cover
+   exactly this — and refuse to start until the browser says it can play the
+   whole thing through. Until then the poster frame stands in, which is a
+   still image of the same footage, so nobody can tell. */
+/* If you ever add smaller .webm versions alongside the .mp4 files, flip this
+   to true and browsers that can read VP9 will take them; everything else
+   falls back to the mp4. See the Performance notes in the README. */
+const PREFER_WEBM = false;
+const WEBM_OK = PREFER_WEBM && !!document.createElement('video').canPlayType('video/webm; codecs="vp9"');
+const videoSrc = base => `/assets/video/${base}.${WEBM_OK ? 'webm' : 'mp4'}`;
+
+function primeHeroVideo() {
+  if (!heroVideo || heroBanned || heroVideo.src) return;
+  heroVideo.preload = 'auto';
+  heroVideo.src = videoSrc('intro');
+  heroVideo.load();
+
+  heroVideo.addEventListener('canplaythrough', () => {
+    heroReady = true;
+    startHeroVideo();
+  }, { once: true });
+
+  /* On a marginal connection canplaythrough may never fire at all. Rather than
+     give up on the video entirely, drop to a weaker bar after a while and let
+     the stall counter below be the real judge. */
+  setTimeout(() => {
+    if (!heroReady && heroVideo.readyState >= 3) { heroReady = true; startHeroVideo(); }
+  }, 9000);
+
+  // a stuttering hero is worse than a still one — three stalls and we stop
+  let stalls = 0;
+  const onStall = () => {
+    if (++stalls < 3) return;
+    heroBanned = true;
+    heroVideo.pause();
+    console.info('%c🐸 hero video stalled repeatedly — holding the poster frame', 'color:#74c13b;font:12px monospace');
+  };
+  heroVideo.addEventListener('waiting', onStall);
+  heroVideo.addEventListener('stalled', onStall);
+}
 
 function startHeroVideo() {
-  if (!heroVideo || heroBanned || !heroOnScreen || document.hidden) return;
-  if (!heroVideo.src) heroVideo.src = '/assets/video/intro.mp4';   // only fetched once we're past the boot screen
+  if (!heroVideo || heroBanned || !heroReady || !heroOnScreen || document.hidden) return;
   heroVideo.play().catch(() => {});
 }
 
@@ -824,17 +875,32 @@ document.addEventListener('click', e => {
     nameEl.textContent = c.name;
 
     if (!same || !vid.src) {
+      /* The static isn't decoration here — it's the loading state. These tapes
+         are big, and holding the noise until the browser can actually play
+         through means you never see a stuttering picture, just a set tuning
+         itself in. Exactly what the section is pretending to be anyway. */
       tv.classList.add('is-tuning');
       staticOn();
       Sound.blip(180 + i * 40, 0.12, 0.05);
-      setTimeout(() => {
-        vid.poster = `/assets/posters/${c.poster}`;
-        vid.src = `/assets/video/${c.file}`;
-        vid.load();
+
+      vid.poster = `/assets/posters/${c.poster}`;
+      vid.preload = 'auto';
+      vid.src = videoSrc(c.file);
+      vid.load();
+
+      let settled = false;
+      const lock = () => {
+        if (settled || current !== i) return;
+        settled = true;
         tv.classList.remove('is-tuning');
         staticOff();
         if (autoplay) start();
-      }, 420);
+      };
+      vid.addEventListener('canplaythrough', lock, { once: true });
+      // don't hold the noise forever on a bad line
+      setTimeout(lock, 9000);
+      // ...but always show at least a beat of static, or the switch reads as a glitch
+      setTimeout(() => { if (vid.readyState >= 4) lock(); }, 420);
     } else if (autoplay) {
       start();
     }

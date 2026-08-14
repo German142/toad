@@ -130,13 +130,44 @@ tab blur, the marquees skip any belt outside the viewport, and the spore canvas 
 the tab is hidden. Channel tapes are `preload="none"`, and the hero video isn't even fetched
 until you're past the boot screen.
 
-**The video files themselves are the remaining bottleneck.** Several channel clips run at
-28–36 Mbps, roughly ten times what they need. Re-encoding them fixes the last of the
-stutter on weak hardware:
+### Buffering
+
+Locally the video files sit on disk and start instantly. Over a CDN they are a real download,
+and calling `play()` on an empty buffer produces a slideshow — which is what "it stutters on
+the deploy but not in preview" actually means. So:
+
+- The hero starts downloading **during the boot screen**, which exists to cover exactly this.
+- It refuses to start until `canplaythrough` fires. Until then the poster stands in — a still
+  frame of the same footage, so nobody can tell. After 9 seconds it settles for a weaker bar.
+- Three stalls mid-playback and it gives up and holds the poster. A still hero beats a
+  stuttering one.
+- On the television, the static burst **is** the loading state: the noise holds until the tape
+  can play through. A set tuning itself in is what the section is pretending to be anyway.
+
+### The files are still too big
+
+This is the one thing the code can't fix. Several clips run at **28–36 Mbps** — an eight-second
+clip weighing 36 MB. Re-encode them and everything above gets easier:
 
 ```bash
 ffmpeg -i in.mp4 -c:v libx264 -crf 26 -preset slow -vf scale=1280:-2 -c:a aac -b:a 96k -movflags +faststart out.mp4
 ```
+
+`-movflags +faststart` matters as much as the bitrate: it moves the index to the front of the
+file so playback can begin before the download finishes.
+
+Overwrite the files in `assets/video/` keeping the same names — no code changes needed. If you
+also produce `.webm` versions, set `PREFER_WEBM = true` in `js/main.js` and browsers that read
+VP9 will take those instead, with the mp4 as the fallback.
+
+> Transcoding in-browser via canvas + `MediaRecorder` was tried and rejected: at a small enough
+> bitrate the picture visibly blocks up, and MediaRecorder's WebM output carries no duration in
+> its header, which breaks seeking and looping. Use a real encoder.
+
+### Bandwidth
+
+The video directory is ~186 MB. Every visitor pulls at least the 12.5 MB hero. Worth watching
+against your Vercel plan's bandwidth allowance — another reason to re-encode.
 - Fully responsive, and every animation respects `prefers-reduced-motion`
 
 ## Running it locally
