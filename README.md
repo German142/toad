@@ -61,10 +61,9 @@ and the desktop switches to a "not announced yet" state.
 > **⚠ Verify the contract address before every deploy.** It is displayed and copied to
 > visitors' clipboards — a wrong value here costs people real money.
 >
-> The current value was found by searching for "El Toad Pepe" back when the project used the
-> `@eltoadpepe` handle. The socials have since moved to `@thetoadmeme_`, and **nobody has
-> confirmed the address still belongs to this project.** Check it against the official X
-> account and Solscan before trusting it.
+> The address above is confirmed current: the socials moved from `@eltoadpepe` to
+> `@thetoadmeme_`, but the token did not change. Re-check it against the official X account
+> and Solscan anyway whenever anything else about the project moves.
 
 ### Adding a channel
 
