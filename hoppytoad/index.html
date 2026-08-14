@@ -7,6 +7,25 @@
 <meta name="description" content="Hoppy Toad — a one-button jumping game. Hop the toad through the reeds." />
 <meta name="theme-color" content="#0d4c96" />
 
+<script>
+/* Some hosts serve a folder's index page without its trailing slash —
+   Vercel's cleanUrls does exactly that, turning /hoppytoad/ into /hoppytoad.
+   At that URL every relative href below resolves against the SITE ROOT
+   instead of this folder, so the stylesheet, the script and the sprites all
+   404 and you get a page of unstyled text. Putting the base back here, before
+   any of them is parsed, makes the game independent of how it is served.
+   Skipped when the path already ends in a slash or names a file, so file://
+   and normal /hoppytoad/ URLs are untouched. */
+(function () {
+  var p = location.pathname;
+  if (p.charAt(p.length - 1) !== '/' && p.lastIndexOf('.') <= p.lastIndexOf('/')) {
+    var b = document.createElement('base');
+    b.href = p + '/';
+    document.head.appendChild(b);
+  }
+})();
+</script>
+
 <link rel="icon" type="image/png" sizes="32x32" href="assets/icon-32.png" />
 <link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png" />
 <link rel="apple-touch-icon" href="assets/icon-180.png" />
