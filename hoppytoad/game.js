@@ -10,6 +10,15 @@
 (function () {
   'use strict';
 
+  /* Assets are resolved against this file's own URL rather than the
+     document's, so the folder still works when it is dropped in at a
+     different depth — and on file:// too. */
+  const BASE = (function () {
+    const s = document.currentScript ||
+              document.querySelector('script[src$="game.js"]');
+    return s && s.src ? s.src.replace(/[^/]*$/, '') : '';
+  })();
+
   /* ─────────── the canvas is a fixed logical grid ─────────── */
   const W = 400;                 // logical width
   const H = 600;                 // logical height
@@ -757,7 +766,7 @@
     startLoop();
   };
   sheet.onerror = function () {
-    fail('Could not load assets/toad_spritesheet.png');
+    fail('Could not load ' + BASE + 'assets/toad_spritesheet.png');
   };
-  sheet.src = 'assets/toad_spritesheet.png';
+  sheet.src = BASE + 'assets/toad_spritesheet.png';
 })();

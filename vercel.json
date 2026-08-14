@@ -1,7 +1,13 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "cleanUrls": true,
-  "trailingSlash": false,
+
+  "//": "cleanUrls + trailingSlash:false used to live here. Together they 308'd
+         /hoppytoad/ and /hoppytoad/index.html down to /hoppytoad, and at that
+         URL every relative path in the game resolved against the site root —
+         style.css became /style.css and 404'd. Nothing here needs pretty URLs,
+         so both are gone. Do not add them back without checking any page that
+         lives in a subdirectory.",
+
   "headers": [
     {
       "source": "/assets/(.*)",

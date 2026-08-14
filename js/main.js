@@ -572,7 +572,8 @@ function toast(msg) {
    the window tears the whole thing down — no stray loop left running. */
 function mountHoppy(win) {
   const frame = $('#hoppyFrame', win);
-  if (!frame.src) frame.src = '/hoppytoad/index.html';
+  /* trailing slash matters: the game's assets are relative to its folder */
+  if (!frame.src) frame.src = '/hoppytoad/';
   /* hand it the keyboard so SPACE works without hunting for a click */
   setTimeout(() => { try { frame.contentWindow.focus(); } catch (e) {} }, 220);
 }
