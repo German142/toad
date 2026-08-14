@@ -220,6 +220,7 @@ const APPS = {
   tokenomics: { title:'Tokenomics.xls',        icon:'ic-tokenomics', tpl:'app-tokenomics', w:520,  h:470, status:'Read only' },
   buy:        { title:'HowToBuy.txt — Notepad',icon:'ic-buy',        tpl:'app-buy',        w:560,  h:520, status:'', mount:mountBuy },
   lore:       { title:'Lore.hlp — Help',       icon:'ic-lore',       tpl:'app-lore',       w:600,  h:560, status:'The Record' },
+  chart:      { title:'Live chart — Dexscreener', icon:'ic-chart',   tpl:'app-chart',      w:1000, h:690, status:'Streaming from Dexscreener', mount:mountChart },
   contract:   { title:'Contract address',      icon:'ic-contract',   tpl:'app-contract',   w:460,  h:300, status:'', mount:mountContract, dialog:true },
   safety:     { title:'ReadMe.txt — Notepad',  icon:'ic-safety',     tpl:'app-safety',     w:540,  h:480, status:'' },
   bin:        { title:'Recycle Bin',           icon:'ic-bin',        tpl:'app-bin',        w:480,  h:320, status:'3 objects' },
@@ -234,6 +235,7 @@ const iconHTML = (icon, cls = 'ico') =>
 const DESKTOP_ICONS = [
   { app:'explorer',   label:'Toad Explorer' },
   { app:'canal88',    label:'Canal 88' },
+  { app:'chart',      label:'Live Chart' },
   { app:'memes',      label:'Evidence' },
   { app:'tokenomics', label:'Tokenomics.xls' },
   { app:'buy',        label:'HowToBuy.txt' },
@@ -495,7 +497,7 @@ function buildStartMenu() {
   right.append(
     item('ic-contract', 'Contract address', '', () => WM.launch('contract')),
     item(LOGO, 'Buy on pump.fun', '', () => open(CONFIG.buy, '_blank', 'noopener')),
-    item('ic-viewer', 'Live chart', '', () => open(CONFIG.chart, '_blank', 'noopener')),
+    item('ic-chart', 'Live chart', 'Opens here', () => WM.launch('chart')),
     sep(),
     item(LOGO, 'X / Twitter', '', () => open(CONFIG.x, '_blank', 'noopener')),
     item(LOGO, 'X Community', '', () => open(CONFIG.community, '_blank', 'noopener')),
@@ -564,6 +566,26 @@ function toast(msg) {
    ══════════════════════════════════════════════════════════════ */
 function mountExplorer(win) {
   $$('.ie__tb[data-nav]', win).forEach(b => b.addEventListener('click', () => Sound.blip(600, .04, .03)));
+}
+
+/* Dexscreener in a window rather than a new tab. Their embed mode is built
+   for this; if they ever refuse the frame, the fallback panel stays up and
+   points at the button that opens it properly. */
+function mountChart(win) {
+  const frame = $('#chartFrame', win), load = $('#chartLoad', win);
+  const embed = CONFIG.ca
+    ? `https://dexscreener.com/solana/${CONFIG.ca}?embed=1&theme=dark&trades=1&info=0`
+    : 'https://dexscreener.com/solana?embed=1&theme=dark';
+
+  $('#chartUrl', win).textContent = 'dexscreener.com/solana/' +
+    (CONFIG.ca ? CONFIG.ca.slice(0, 6) + '…' + CONFIG.ca.slice(-4) : '');
+  $('#chartOpen', win).href = CONFIG.chart;
+
+  let arrived = false;
+  frame.addEventListener('load', () => { arrived = true; load.hidden = true; }, { once: true });
+  frame.src = embed;
+
+  setTimeout(() => { if (!arrived) load.classList.add('is-fail'); }, 9000);
 }
 
 function mountContract(win) {

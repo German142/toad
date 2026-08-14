@@ -29,6 +29,7 @@ vercel.json           caching + security headers
 |---|---|---|
 | **Toad Explorer** | Internet Explorer 6 | The origin story, the facts table, every outbound link |
 | **Canal 88 Player** | Windows Media Player | 6 tapes with a playlist, seek bar and channel switching |
+| **Live Chart** | Embedded browser | Dexscreener's own embed, framed in a window instead of a new tab |
 | **Evidence** | Explorer folder | 20 memes as files; double-click opens **Toad Viewer** |
 | **Tokenomics.xls** | Spreadsheet | Supply, tax, revoked authorities |
 | **HowToBuy.txt** | Notepad | Three steps, the contract, a copy button |
@@ -113,6 +114,10 @@ actually loads (198 KB instead of 1.2 MB). Replace both, keeping the names.
   clip. Emoji would have rendered differently on every platform, and half of them monochrome.
 - **Sound is synthesised** with the Web Audio API — the startup chime, the croak, the clicks.
   No audio files ship. Mute from the tray.
+- **The live chart stays on the site.** Every Dexscreener entry point opens the **Live Chart**
+  app, which frames Dexscreener's own `?embed=1` view rather than throwing the visitor into a
+  new tab. If they ever refuse to be framed, the panel underneath says so and points at an
+  "Open in browser" button, so the link never silently dies.
 - **Type `TOAD`** anywhere.
 - On phones every window opens full-bleed and the taskbar collapses to icons; the desktop
   metaphor still holds but nothing needs dragging.

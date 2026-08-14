@@ -659,6 +659,38 @@ img.menu__ico{ border-radius:4px; }
 .viewer__bar span{ font-size:11px; }
 
 /* ══════════════════════════════════════════════════════════════
+   12b · APP — LIVE CHART
+   ══════════════════════════════════════════════════════════════ */
+.chart{ display:flex; flex-direction:column; min-height:100%; background:#0d1622; }
+.chart__bar{
+  flex:none; display:flex; align-items:center; gap:8px; padding:5px 8px;
+  background:var(--face); box-shadow:inset 0 -1px 0 var(--face-dark), inset 0 1px 0 #fff;
+}
+.chart__badge{
+  font-size:9px; font-weight:700; letter-spacing:1px; color:#fff;
+  background:#c0392b; padding:2px 6px; border-radius:2px;
+  animation:blink 1.6s steps(1) infinite;
+}
+.chart__url{
+  flex:1; min-width:0; height:21px; line-height:19px; padding:0 7px;
+  background:#fff; border:1px solid #7f9db9; box-shadow:inset 1px 1px 0 #b8c8da;
+  font:400 11px "Lucida Console", monospace; color:#222;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.chart__stage{ position:relative; flex:1; min-height:340px; }
+.chart__stage iframe{ position:absolute; inset:0; width:100%; height:100%; border:0; background:#0d1622; }
+.chart__load{
+  position:absolute; inset:0; z-index:2; display:grid; align-content:center; justify-items:center;
+  gap:8px; padding:24px; text-align:center; background:#0d1622; color:#cfe0ff;
+}
+.chart__load[hidden]{ display:none; }
+.chart__load b{ font-size:14px; }
+.chart__load span{ font-size:11px; color:#7f9ac6; max-width:44ch; }
+.chart__load i{ display:none; font-style:normal; font-size:11px; color:#ffb26b; max-width:44ch; }
+.chart__load.is-fail i{ display:block; }
+.chart__load.is-fail b::after{ content:' taking a while'; color:#ffb26b; }
+
+/* ══════════════════════════════════════════════════════════════
    13 · APP — SPREADSHEET, NOTEPAD, HELP, DIALOG
    ══════════════════════════════════════════════════════════════ */
 .sheet{ background:#fff; min-height:100%; display:flex; flex-direction:column; }
