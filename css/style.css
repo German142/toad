@@ -202,11 +202,25 @@ body::before{
   background:repeating-linear-gradient(0deg, rgba(0,0,0,.5) 0 1px, transparent 1px 3px);
 }
 
-/* ─── lite mode: weak hardware, small screens, or Data Saver ─── */
+/* ─── tier 1 · lite: weak hardware, touch, Data Saver, or measured low FPS ─── */
 body.perf-lite .fx-grain{ display:none; }
 body.perf-lite .fx-scan{ opacity:.14; }
 body.perf-lite .hero__rgb{ animation:none; }
 body.perf-lite .fx-vignette{ box-shadow:inset 0 0 90px rgba(0,0,0,.8); }
+/* every blur on the page, gone — these are the priciest thing a weak GPU does */
+body.perf-lite .nav.is-stuck{ backdrop-filter:none; background:rgba(6,13,7,.96); }
+body.perf-lite .stamp{ backdrop-filter:none; background:rgba(6,13,7,.8); }
+body.perf-lite .lb{ backdrop-filter:none; background:rgba(3,6,3,.985); }
+body.perf-lite .wordmark{ text-shadow:5px 5px 0 var(--toad-deep), 9px 9px 0 rgba(224,52,42,.8); }
+body.perf-lite .ink-green{ text-shadow:none; }
+body.perf-lite .tok-card__v{ text-shadow:none; }
+
+/* ─── tier 2 · minimal: the machine is genuinely struggling ─── */
+body.perf-min .fx-spores,
+body.perf-min .fx-scan,
+body.perf-min .hero__rgb{ display:none; }
+body.perf-min .hero__video video{ transform:none; }
+body.perf-min .btn__glow{ display:none; }
 .fx-vignette{
   position:fixed; inset:0; z-index:4; pointer-events:none;
   box-shadow:inset 0 0 clamp(80px,14vw,220px) rgba(0,0,0,.85);
@@ -300,8 +314,8 @@ input, textarea{ cursor:text; }
   border-bottom:1px solid transparent;
 }
 .nav.is-stuck{
-  background:rgba(6,13,7,.82);
-  backdrop-filter:blur(14px) saturate(1.4);
+  background:rgba(6,13,7,.88);
+  backdrop-filter:blur(10px) saturate(1.3);
   border-bottom-color:rgba(116,193,59,.22);
   padding-block:.6rem;
 }
@@ -513,12 +527,15 @@ input, textarea{ cursor:text; }
 .hero__cta{ display:flex; flex-wrap:wrap; gap:.85rem; justify-content:center; }
 
 /* contract bar */
+/* No backdrop-filter here. This bar sits directly on top of the playing hero
+   video, and blurring a moving backdrop re-runs the blur every single frame —
+   it was one of the two things making the hero stutter. A solid panel reads
+   better against the footage anyway. */
 .ca{
   display:flex; align-items:center; gap:.75rem; flex-wrap:wrap;
   justify-content:center;
-  background:rgba(3,6,3,.66);
+  background:rgba(3,6,3,.88);
   border:1px solid rgba(168,255,26,.3);
-  backdrop-filter:blur(10px);
   border-radius:4px; padding:.6rem .75rem .6rem 1rem;
   max-width:min(680px,100%);
   transition:border-color .25s ease, transform .2s var(--ease);

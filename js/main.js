@@ -69,7 +69,31 @@ const SLOW_NET  = /^(slow-2g|2g|3g)$/.test(navigator.connection?.effectiveType |
 const CORES     = navigator.hardwareConcurrency || 4;
 const LITE      = REDUCED || SAVE_DATA || SLOW_NET || CORES <= 4 || COARSE;
 const NO_HERO_VIDEO = REDUCED || SAVE_DATA || SLOW_NET || CORES <= 2;
-if (LITE) document.body.classList.add('perf-lite');
+
+/* Core count is a poor proxy for how a machine actually feels — a four-core
+   laptop with a decent GPU sails through this, an eight-core one with weak
+   integrated graphics chokes. So we also measure real frame rate once the
+   hero is running and step down if the numbers are bad. Tiers only go up. */
+const Perf = {
+  level: 0,                       // 0 full · 1 lite · 2 minimal
+  _subs: [],
+  onChange(fn) { this._subs.push(fn); fn(this.level); },
+  set(level, why) {
+    if (level <= this.level) return;
+    this.level = level;
+    document.body.classList.toggle('perf-lite', level >= 1);
+    document.body.classList.toggle('perf-min',  level >= 2);
+    this._subs.forEach(fn => fn(level));
+    console.info(`%c🐸 effects → tier ${level} (${why})`, 'color:#74c13b;font:12px monospace');
+  },
+};
+if (LITE) Perf.set(1, 'device hints');
+
+/* ?fx=lite / ?fx=min force a tier, ?fx=full pins everything on — handy for
+   checking what a slower machine actually sees */
+const FX_FORCE = new URLSearchParams(location.search).get('fx');
+if (FX_FORCE === 'lite') Perf.set(1, 'url override');
+if (FX_FORCE === 'min')  Perf.set(2, 'url override');
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const rand  = (a, b) => a + Math.random() * (b - a);
 
@@ -202,6 +226,7 @@ function toast(msg) {
       document.body.classList.add('is-live');
       startHeroVideo();
       revealHero();
+      window.__armWatchdog?.();
       setTimeout(() => el.remove(), 600);
     }, 560);
   }
@@ -216,9 +241,10 @@ function toast(msg) {
    ══════════════════════════════════════════════════════════════ */
 const heroVideo = $('#heroVideo');
 let heroOnScreen = true;
+let heroBanned = NO_HERO_VIDEO;
 
 function startHeroVideo() {
-  if (!heroVideo || NO_HERO_VIDEO || !heroOnScreen || document.hidden) return;
+  if (!heroVideo || heroBanned || !heroOnScreen || document.hidden) return;
   if (!heroVideo.src) heroVideo.src = '/assets/video/intro.mp4';   // only fetched once we're past the boot screen
   heroVideo.play().catch(() => {});
 }
@@ -236,6 +262,42 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) heroVideo?.pause();
   else startHeroVideo();
 });
+
+/* ── frame-rate watchdog ──
+   Runs for a few seconds after the hero starts. If the page can't hold a
+   comfortable frame rate we drop a tier, and if it still can't, we park the
+   video on its poster frame. Better a still hero than a stuttering one. */
+(function watchdog() {
+  if (REDUCED || FX_FORCE) return;
+  let frames = 0, since = 0, rounds = 0, armed = false;
+
+  window.__armWatchdog = () => {
+    if (armed) return;
+    armed = true;
+    setTimeout(() => {                       // let the first paint settle
+      since = performance.now();
+      requestAnimationFrame(tick);
+    }, 1200);
+  };
+
+  function tick(now) {
+    if (document.hidden) { frames = 0; since = now; return requestAnimationFrame(tick); }
+    frames++;
+    const dt = now - since;
+    if (dt < 1500) return requestAnimationFrame(tick);
+
+    const fps = (frames * 1000) / dt;
+    frames = 0; since = now; rounds++;
+
+    if (fps < 34 && Perf.level < 2) {
+      Perf.set(2, `${fps.toFixed(0)} fps`);
+      if (heroVideo && !heroVideo.paused) { heroBanned = true; heroVideo.pause(); }
+      return;                                 // nothing left to step down to
+    }
+    if (fps < 50 && Perf.level < 1) Perf.set(1, `${fps.toFixed(0)} fps`);
+    if (rounds < 4) requestAnimationFrame(tick);
+  }
+})();
 function revealHero() {
   const k = $('.hero__kicker');
   const title = $('.wordmark');
@@ -292,20 +354,49 @@ if (!REDUCED) {
   const cv = $('#spores');
   if (!cv || REDUCED) { if (cv) cv.style.display = 'none'; return; }
   const ctx = cv.getContext('2d');
-  let w, h, parts = [], dpr = Math.min(devicePixelRatio || 1, LITE ? 1 : 2);
-  let running = true;
+  let w, h, parts = [], dpr = 1, running = true, dead = false;
+
+  /* The glow used to come from ctx.shadowBlur, which is a fresh gaussian blur
+     per particle per frame — dozens of blurs every 16 ms. Now each colour is
+     rendered once into a little sprite and simply stamped. */
+  const sprite = (rgb) => {
+    const S = 64, c = document.createElement('canvas');
+    c.width = c.height = S;
+    const g = c.getContext('2d');
+    const grad = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+    grad.addColorStop(0,   `rgba(${rgb},1)`);
+    grad.addColorStop(.28, `rgba(${rgb},.55)`);
+    grad.addColorStop(1,   `rgba(${rgb},0)`);
+    g.fillStyle = grad;
+    g.fillRect(0, 0, S, S);
+    return c;
+  };
+  const SPRITES = [sprite('168,255,26'), sprite('245,197,24')];
+
+  function tierSettings() {
+    if (Perf.level >= 1) return { dpr: 1,   div: 46, min: 10, max: 26 };
+    return                      { dpr: Math.min(devicePixelRatio || 1, 1.5), div: 26, min: 22, max: 60 };
+  }
 
   function size() {
-    w = cv.width  = innerWidth  * dpr;
-    h = cv.height = innerHeight * dpr;
+    if (dead) return;
+    const s = tierSettings();
+    dpr = s.dpr;
+    w = cv.width  = Math.max(1, Math.round(innerWidth  * dpr));
+    h = cv.height = Math.max(1, Math.round(innerHeight * dpr));
     cv.style.width = innerWidth + 'px';
     cv.style.height = innerHeight + 'px';
-    const n = clamp(Math.round(innerWidth / (LITE ? 46 : 22)), LITE ? 12 : 26, LITE ? 30 : 80);
+    const n = clamp(Math.round(innerWidth / s.div), s.min, s.max);
     parts = Array.from({ length: n }, () => spawn());
   }
 
+  Perf.onChange(level => {
+    if (level >= 2) { dead = true; running = false; cv.style.display = 'none'; return; }
+    size();
+  });
+
   document.addEventListener('visibilitychange', () => {
-    running = !document.hidden;
+    running = !document.hidden && !dead;
     if (running) frame();
   });
   function spawn(atBottom) {
@@ -320,7 +411,7 @@ if (!REDUCED) {
     };
   }
   function frame() {
-    if (!running) return;
+    if (!running || dead) return;
     ctx.clearRect(0, 0, w, h);
     for (const p of parts) {
       p.p += 0.014;
@@ -328,21 +419,16 @@ if (!REDUCED) {
       p.x += p.vx + Math.sin(p.p) * 0.22 * dpr;
       if (p.y < -20) Object.assign(p, spawn(true));
       const glow = (Math.sin(p.p * 1.7) + 1) / 2;
-      const alpha = p.a * (0.45 + glow * 0.55);
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-      ctx.fillStyle = p.warm
-        ? `rgba(245,197,24,${alpha})`
-        : `rgba(168,255,26,${alpha})`;
-      ctx.shadowBlur = 10 * dpr;
-      ctx.shadowColor = p.warm ? 'rgba(245,197,24,.7)' : 'rgba(168,255,26,.7)';
-      ctx.fill();
+      ctx.globalAlpha = p.a * (0.45 + glow * 0.55);
+      const d = p.r * 7;
+      ctx.drawImage(SPRITES[p.warm ? 1 : 0], p.x - d / 2, p.y - d / 2, d, d);
     }
-    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
     requestAnimationFrame(frame);
   }
   size();
-  addEventListener('resize', size);
+  let resizeTimer;
+  addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(size, 150); });
   frame();
 })();
 
@@ -445,25 +531,41 @@ function initMarquee(track) {
   };
   fill();
 
-  const m = { track, speed, dir, x: 0, half: 0, factor: 1 };
+  const m = { track, speed, dir, x: 0, half: 0, factor: 1, visible: true };
   m.measure = () => { m.half = track.scrollWidth / 2; };
   m.measure();
   track.addEventListener('mouseenter', () => (m.factor = 0.15));
   track.addEventListener('mouseleave', () => (m.factor = 1));
+
+  // a belt scrolling past six screens above the fold is work nobody sees
+  marqueeSpy.observe(track.parentElement || track);
+  visibilityMap.set(track.parentElement || track, m);
+
   marquees.push(m);
   return m;
 }
+const visibilityMap = new WeakMap();
+const marqueeSpy = new IntersectionObserver(entries => {
+  entries.forEach(en => {
+    const m = visibilityMap.get(en.target);
+    if (m) m.visible = en.isIntersecting;
+  });
+}, { rootMargin: '150px 0px' });
+
 (function marqueeLoop() {
   let last = performance.now();
   function tick(now) {
     const dt = Math.min((now - last) / 1000, 0.05);
     last = now;
-    for (const m of marquees) {
-      if (!m.half) { m.measure(); continue; }
-      m.x -= m.speed * m.factor * m.dir * dt;
-      if (m.dir > 0 && m.x <= -m.half) m.x += m.half;
-      if (m.dir < 0 && m.x >= 0) m.x -= m.half;
-      m.track.style.transform = `translate3d(${m.x}px,0,0)`;
+    if (!document.hidden) {
+      for (const m of marquees) {
+        if (!m.visible) continue;
+        if (!m.half) { m.measure(); continue; }
+        m.x -= m.speed * m.factor * m.dir * dt;
+        if (m.dir > 0 && m.x <= -m.half) m.x += m.half;
+        if (m.dir < 0 && m.x >= 0) m.x -= m.half;
+        m.track.style.transform = `translate3d(${m.x}px,0,0)`;
+      }
     }
     requestAnimationFrame(tick);
   }

@@ -101,15 +101,34 @@ until someone asks for them.
 
 ## Performance
 
-The page carries a lot of moving parts, so it measures the machine before deciding how much
-to run. `LITE` mode (`js/main.js`) kicks in on reduced-motion, Data Saver, a slow connection,
-four cores or fewer, or any touch device: film grain switches off, scanlines lighten, and
-the spore count and canvas resolution drop. Below three cores the hero video never loads at
-all and the poster frame stands in — the page reads identically.
+The page has three effect tiers and picks one for you.
 
-Beyond that: the hero video is only fetched once you're past the boot screen, pauses whenever
-it scrolls out of view or the tab goes to the background, and carries no CSS `filter`
-(grading a full-screen video costs a GPU pass per frame). Channel tapes are `preload="none"`.
+| tier | what runs | when |
+|---|---|---|
+| **0 — full** | everything | capable machine holding ~60 fps |
+| **1 — lite** | no film grain, no blurs, no text glow, fewer spores at 1× | reduced-motion, Data Saver, slow connection, ≤4 cores, any touch device, **or a measured frame rate under 50** |
+| **2 — minimal** | no spores, no scanlines, no chroma drift; hero parks on its poster frame | **measured frame rate under 34** |
+
+Core count is a poor proxy for how a machine feels, so after the boot screen a watchdog
+samples the real frame rate for a few seconds and steps down if the numbers are bad. Tiers
+only ever go up, never back down, so it can't oscillate. Force one with `?fx=lite`,
+`?fx=min` or `?fx=full` to see what a slower machine gets.
+
+The expensive things it avoids, and why they were expensive:
+
+- **`backdrop-filter` over the playing video.** The contract bar sat on top of the hero
+  footage; blurring a *moving* backdrop re-runs the blur every frame. Solid panel now.
+- **`ctx.shadowBlur` per particle.** Every spore asked for its own gaussian blur, dozens of
+  them per frame. Each colour is now baked into a sprite once and stamped.
+- **CSS `filter` on the hero video** — a full-screen GPU pass per frame. Baked into the
+  gradient above it instead.
+- **`mix-blend-mode` scanlines** over the video, forcing a full-screen composite per frame.
+- **A 4900×3000 grain layer** sliding three times a second — the biggest repaint on the page.
+
+Everything also stops when it isn't being looked at: the hero video pauses off-screen and on
+tab blur, the marquees skip any belt outside the viewport, and the spore canvas halts when
+the tab is hidden. Channel tapes are `preload="none"`, and the hero video isn't even fetched
+until you're past the boot screen.
 
 **The video files themselves are the remaining bottleneck.** Several channel clips run at
 28–36 Mbps, roughly ten times what they need. Re-encoding them fixes the last of the
