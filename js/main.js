@@ -9,8 +9,8 @@
    ───────────────────────────────────────────────────────────── */
 const CONFIG = {
   ca:        'A13oRB9FFaiUjfi6LdCg6p9ka1u8SfGkUFs4SKvPpump',
-  x:         'https://x.com/eltoadpepe',
-  community: 'https://x.com/i/communities/2030839209980989725',
+  x:         'https://x.com/thetoadmeme_',
+  community: 'https://x.com/i/communities/1991148242780967304',
 };
 CONFIG.buy   = CONFIG.ca ? `https://pump.fun/coin/${CONFIG.ca}`          : 'https://pump.fun';
 CONFIG.chart = CONFIG.ca ? `https://dexscreener.com/solana/${CONFIG.ca}` : 'https://dexscreener.com/solana';
@@ -603,20 +603,20 @@ function mountChart(win) {
 }
 
 function mountContract(win) {
-  const ca = CONFIG.ca || 'Not announced yet — watch @eltoadpepe';
+  const ca = CONFIG.ca || 'Not announced yet — watch @thetoadmeme_';
   $('#dlgCA', win).textContent = ca;
   $('#dlgScan', win).href = CONFIG.scan;
   $('#dlgCopy', win).addEventListener('click', () => copyCA());
 }
 
 function mountBuy(win) {
-  $('#padCA', win).textContent = CONFIG.ca || 'Not announced yet — watch @eltoadpepe';
+  $('#padCA', win).textContent = CONFIG.ca || 'Not announced yet — watch @thetoadmeme_';
   $('#padBuy', win).href = CONFIG.buy;
   $('#padCopy', win).addEventListener('click', () => copyCA());
 }
 
 async function copyCA() {
-  if (!CONFIG.ca) { assistant('No contract yet. Watch @eltoadpepe.'); return; }
+  if (!CONFIG.ca) { assistant('No contract yet. Watch @thetoadmeme_.'); return; }
   try { await navigator.clipboard.writeText(CONFIG.ca); }
   catch {
     const ta = document.createElement('textarea');

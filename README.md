@@ -50,8 +50,8 @@ Everything token-specific lives in one object at the top of [`js/main.js`](js/ma
 ```js
 const CONFIG = {
   ca:        'A13oRB9FFaiUjfi6LdCg6p9ka1u8SfGkUFs4SKvPpump',
-  x:         'https://x.com/eltoadpepe',
-  community: 'https://x.com/i/communities/2030839209980989725',
+  x:         'https://x.com/thetoadmeme_',
+  community: 'https://x.com/i/communities/1991148242780967304',
 };
 ```
 
@@ -60,6 +60,11 @@ and the desktop switches to a "not announced yet" state.
 
 > **⚠ Verify the contract address before every deploy.** It is displayed and copied to
 > visitors' clipboards — a wrong value here costs people real money.
+>
+> The current value was found by searching for "El Toad Pepe" back when the project used the
+> `@eltoadpepe` handle. The socials have since moved to `@thetoadmeme_`, and **nobody has
+> confirmed the address still belongs to this project.** Check it against the official X
+> account and Solscan before trusting it.
 
 ### Adding a channel
 
