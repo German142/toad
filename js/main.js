@@ -11,6 +11,7 @@ const CONFIG = {
   ca:        'A13oRB9FFaiUjfi6LdCg6p9ka1u8SfGkUFs4SKvPpump',
   x:         'https://x.com/thetoadmeme_',
   community: 'https://x.com/i/communities/1991148242780967304',
+  tiktok:    'https://www.tiktok.com/@toad2066',
 };
 CONFIG.buy   = CONFIG.ca ? `https://pump.fun/coin/${CONFIG.ca}`          : 'https://pump.fun';
 CONFIG.chart = CONFIG.ca ? `https://dexscreener.com/solana/${CONFIG.ca}` : 'https://dexscreener.com/solana';
@@ -254,6 +255,7 @@ const iconHTML = (icon, cls = 'ico') =>
 const DESKTOP_ICONS = [
   { app:'explorer',   label:'Toad Explorer' },
   { app:'canal88',    label:'Canal 88' },
+  { link:'tiktok',    label:'TikTok',        icon:'ic-tiktok' },
   { app:'hoppytoad',  label:'Hoppy Toad' },
   { app:'chart',      label:'Live Chart' },
   { app:'memes',      label:'Evidence' },
@@ -468,20 +470,24 @@ function boot() {
 function buildIcons() {
   const host = $('#icons');
   host.innerHTML = '';
-  DESKTOP_ICONS.forEach(({ app, label }) => {
-    const a = APPS[app];
+  DESKTOP_ICONS.forEach(({ app, label, link, icon }) => {
+    // an icon either opens an app window or, with `link`, a CONFIG url off-site
+    const glyph = icon || APPS[app].icon;
+    const openIt = link
+      ? () => open(CONFIG[link], '_blank', 'noopener')
+      : () => WM.launch(app);
     const el = document.createElement('button');
     el.className = 'icon';
-    el.innerHTML = `<span class="icon__img">${iconHTML(a.icon)}</span><span>${label}</span>`;
+    el.innerHTML = `<span class="icon__img">${iconHTML(glyph)}</span><span>${label}</span>`;
     // single click selects, double click opens — as it should be
     el.addEventListener('click', () => {
       $$('.icon', host).forEach(i => i.classList.remove('is-sel'));
       el.classList.add('is-sel');
     });
-    el.addEventListener('dblclick', () => WM.launch(app));
+    el.addEventListener('dblclick', openIt);
     // touch has no dblclick worth relying on
     if (matchMedia('(pointer: coarse)').matches) {
-      el.addEventListener('click', () => WM.launch(app));
+      el.addEventListener('click', openIt);
     }
     host.appendChild(el);
   });
@@ -522,6 +528,7 @@ function buildStartMenu() {
     sep(),
     item(LOGO, 'X / Twitter', '', () => open(CONFIG.x, '_blank', 'noopener')),
     item(LOGO, 'X Community', '', () => open(CONFIG.community, '_blank', 'noopener')),
+    item(LOGO, 'TikTok', '', () => open(CONFIG.tiktok, '_blank', 'noopener')),
     sep(),
     item('ic-canal88', 'Toggle scanlines', '', () => $('#scanlines').classList.toggle('is-on')),
     item('ic-bin', 'Recycle Bin', '', () => WM.launch('bin')),
