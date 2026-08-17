@@ -580,6 +580,32 @@ function clock() {
     const muted = Sound.toggle();
     $('#trayVol').textContent = muted ? '🔇' : '🔊';
   });
+
+  /* The television zaps to a tape at random. It clicks the playlist row
+     rather than reaching into the player, so tuning, static and blip all
+     run exactly as they do when a visitor picks one by hand. */
+  $('#trayTv').addEventListener('click', () => {
+    WM.launch('canal88');
+    const win = WM.open.get('canal88')?.el;
+    const items = win ? $$('#channels li', win) : [];
+    if (!items.length) return;
+    let i;
+    do { i = Math.floor(Math.random() * items.length); }
+    while (i === tapeCurrent && items.length > 1);
+    items[i].click();
+  });
+
+  /* The pond has always been on dial-up. */
+  let netState = 0;
+  const NET_LINES = [
+    'You are now connected to the pond. Speed: 56.6 Kbps.',
+    'A network cable is unplugged. The pond is unreachable. Try croaking louder.',
+    'Acquiring network address... the pond is thinking about it.',
+  ];
+  $('#trayNet').addEventListener('click', () => {
+    assistant(NET_LINES[netState % NET_LINES.length]);
+    netState += 1;
+  });
 }
 
 /* the assistant, mercifully closeable */
