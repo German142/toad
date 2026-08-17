@@ -473,6 +473,7 @@ function boot() {
   clock();
   WM.launch('explorer');
   setTimeout(() => assistant(`Welcome, fren. Everything lives behind the start button — or double-click an icon. Canal 88 has ${CHANNELS.length} tapes.`), 1400);
+  scheduleAssistant();
 }
 
 function buildIcons() {
@@ -591,6 +592,43 @@ function assistant(msg) {
   assistTimer = setTimeout(() => (el.hidden = true), 11000);
 }
 $('#clipX').addEventListener('click', () => ($('#clip').hidden = true));
+
+/* ── the assistant speaks up on its own ───────────────────────────
+   Half of these quietly carry the safety line, so the warning reaches
+   people who never open ReadMe.txt. */
+const ASSIST_LINES = [
+  'It looks like you are trying to buy a toad. Would you like help with that?',
+  'Canal 88 has been broadcasting since 1988. Your browser is only now catching up.',
+  'Nobody from this desktop will ever DM you first.',
+  'Never give your seed phrase to a toad. Or to anyone else.',
+  'If a stranger offers you a presale, it is not us. There is no presale.',
+  'Defragmenting the pond... 3% complete. Estimated time remaining: 1988.',
+  'Pepe arrived in 2005. The toad was already on air seventeen years earlier.',
+  'Always check the contract against Solscan before you buy. A wrong address costs real money.',
+  'Windows found new hardware: one (1) toad.',
+  'Your free trial of ToadOS expired in 1994. Enjoy the full version.',
+  'Tip: you can toggle the scanlines from the start menu.',
+  'This desktop is not financial advice. It is barely a desktop.',
+];
+
+/* Never twice in a row, never on top of a balloon that is still up, and
+   never while the tab is in the background — nobody wants to come back to
+   a queue of them. */
+let lastLine = -1;
+function scheduleAssistant() {
+  const wait = 45000 + Math.floor(Math.random() * 45000);
+  setTimeout(() => {
+    const clip = $('#clip');
+    if (clip && clip.hidden && !document.hidden) {
+      let i;
+      do { i = Math.floor(Math.random() * ASSIST_LINES.length); }
+      while (i === lastLine && ASSIST_LINES.length > 1);
+      lastLine = i;
+      assistant(ASSIST_LINES[i]);
+    }
+    scheduleAssistant();
+  }, wait);
+}
 
 /* a toast that looks like a tooltip */
 function toast(msg) {

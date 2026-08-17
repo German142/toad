@@ -797,7 +797,12 @@ img.menu__ico{ border-radius:4px; }
 
   .task{ flex-basis:44px; }
   .task span{ display:none; }
-  .clip{ display:none; }
+  /* The balloon used to be hidden here. It is the one thing on this desktop
+     that talks back, and most visitors arrive on a phone — so it stays, just
+     narrower, with a smaller toad so it never crowds the icons. */
+  .clip{ width:196px; right:10px; }
+  .clip__toad{ width:52px; }
+  .clip__bubble{ font-size:12px; }
   .help__row{ grid-template-columns:1fr; }
   .viewer__bar{ flex-wrap:wrap; }
 }
