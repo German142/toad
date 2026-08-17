@@ -772,18 +772,25 @@
 
   function renderShop() {
     if (!elShopList) return;
-    elShopList.innerHTML = '';
+    elShopList.replaceChildren();
     SKINS.forEach(function (s) {
       const has = owned.indexOf(s.id) !== -1;
       const on  = skin === s.id;
       const row = document.createElement('button');
       row.type = 'button';
       row.className = 'shop__row' + (on ? ' is-on' : '');
-      row.innerHTML =
-        '<span class="shop__name">' + s.name + '</span>' +
-        '<span class="shop__tag">' +
-          (on ? 'Equipped' : has ? 'Equip' : ('◉ ' + s.price)) +
-        '</span>';
+      /* Built as nodes with textContent rather than an HTML string. The skin
+         list is hardcoded, so nothing here is user-controlled today — but a
+         markup sink in a page that may later hold a wallet is not worth
+         keeping for the two lines it saves. */
+      const name = document.createElement('span');
+      name.className = 'shop__name';
+      name.textContent = s.name;
+      const tag = document.createElement('span');
+      tag.className = 'shop__tag';
+      tag.textContent = on ? 'Equipped' : has ? 'Equip' : ('◉ ' + s.price);
+      row.appendChild(name);
+      row.appendChild(tag);
       if (!has && flyBank < s.price) row.disabled = true;
       row.addEventListener('click', function () {
         if (!has) {
