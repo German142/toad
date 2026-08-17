@@ -100,6 +100,16 @@
   const btnRetry = document.getElementById('htRetry');
   const btnMenu  = document.getElementById('htMenuBtn');
   const btnSnd   = document.getElementById('htSnd');
+  const elRunFlies    = document.getElementById('htRunFlies');
+  const elBankFlies   = document.getElementById('htBankFlies');
+  const elMenuFlies   = document.getElementById('htMenuFlies');
+  const elContinue    = document.getElementById('htContinue');
+  const elContinueCost = document.getElementById('htContinueCost');
+  const elShare       = document.getElementById('htShare');
+  const elShop        = document.getElementById('htShop');
+  const elShopList    = document.getElementById('htShopList');
+  const btnShop       = document.getElementById('htShopBtn');
+  const btnShopClose  = document.getElementById('htShopClose');
 
   const stage = document.getElementById('htStage');
   const ctx = canvas.getContext('2d', { alpha: false });
@@ -134,6 +144,74 @@
     try { localStorage.setItem(KEY, String(v)); } catch (e) { /* nothing we can do */ }
   }
 
+  const FLY_KEY = 'hoppytoad.flies';
+  const SKIN_KEY = 'hoppytoad.skin';
+  const OWNED_KEY = 'hoppytoad.owned';
+
+  function loadFlies() {
+    try { return Math.max(0, parseInt(localStorage.getItem(FLY_KEY), 10) || 0); } catch (e) { return 0; }
+  }
+  function saveFlies(v) {
+    try { localStorage.setItem(FLY_KEY, String(Math.max(0, v))); } catch (e) {}
+  }
+  /* An unreadable or corrupted list must never lock the default skin away,
+     so every failure path returns the one skin that is always owned. */
+  function loadOwned() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(OWNED_KEY) || '[]');
+      const list = Array.isArray(raw) ? raw.filter(function (s) { return typeof s === 'string'; }) : [];
+      return list.indexOf('classic') === -1 ? ['classic'].concat(list) : list;
+    } catch (e) { return ['classic']; }
+  }
+  function saveOwned(list) {
+    try { localStorage.setItem(OWNED_KEY, JSON.stringify(list)); } catch (e) {}
+  }
+  function loadSkin() {
+    try { return localStorage.getItem(SKIN_KEY) || 'classic'; } catch (e) { return 'classic'; }
+  }
+  function saveSkin(id) {
+    try { localStorage.setItem(SKIN_KEY, id); } catch (e) {}
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     SKINS
+     Every skin is the same sprite sheet under a canvas filter, so a
+     new colourway costs one line and zero bytes over the wire. The
+     tinted sheet is rendered once on first use and cached.
+     ══════════════════════════════════════════════════════════ */
+  const SKINS = [
+    { id: 'classic', name: 'Classic',    price: 0,   filter: null },
+    { id: 'gold',    name: 'Gold Toad',  price: 40,  filter: 'sepia(1) saturate(4) hue-rotate(-18deg) brightness(1.08)' },
+    { id: 'neon',    name: 'Neon Toad',  price: 80,  filter: 'saturate(3) hue-rotate(230deg) brightness(1.15)' },
+    { id: 'ghost',   name: 'Ghost Toad', price: 120, filter: 'grayscale(1) brightness(1.5) contrast(0.8)' },
+    { id: 'matrix',  name: 'Matrix',     price: 200, filter: 'grayscale(1) sepia(1) saturate(6) hue-rotate(55deg) contrast(1.3)' },
+  ];
+  function skinById(id) {
+    for (let i = 0; i < SKINS.length; i++) if (SKINS[i].id === id) return SKINS[i];
+    return SKINS[0];
+  }
+
+  const skinCache = {};
+  function sheetFor(id) {
+    const skin = skinById(id);
+    if (!skin.filter || !sheet) return sheet;
+    if (skinCache[id]) return skinCache[id];
+    try {
+      const c = document.createElement('canvas');
+      c.width = sheet.naturalWidth; c.height = sheet.naturalHeight;
+      const x = c.getContext('2d');
+      x.imageSmoothingEnabled = false;
+      x.filter = skin.filter;
+      x.drawImage(sheet, 0, 0);
+      skinCache[id] = c;
+      return c;
+    } catch (e) {
+      /* No canvas filter support — fall back to the untinted toad rather
+         than dropping a frame. */
+      return sheet;
+    }
+  }
+
   /* ══════════════════════════════════════════════════════════
      SOUND — synthesised, so nothing extra has to load
      ══════════════════════════════════════════════════════════ */
@@ -165,6 +243,8 @@
     return {
       jump:  function () { tone(300, 0.12, 0.05, 'square', 620); },
       score: function () { tone(880, 0.09, 0.04, 'triangle'); setTimeout(function () { tone(1320, 0.09, 0.035, 'triangle'); }, 70); },
+      fly:   function () { tone(1180, 0.06, 0.035, 'sine', 1760); },
+      buy:   function () { tone(660, 0.1, 0.045, 'triangle', 990); setTimeout(function () { tone(1320, 0.12, 0.04, 'triangle'); }, 90); },
       hit:   function () { tone(220, 0.22, 0.07, 'sawtooth', 60); },
       drop:  function () { tone(120, 0.3, 0.05, 'sawtooth', 45); },
       wake:  wake,
@@ -191,6 +271,22 @@
   const POOL = 8;
   const obstacles = [];
   for (let i = 0; i < POOL; i++) obstacles.push({ x: 0, h: 0, scored: false, live: false });
+
+  /* Flies are pooled the same way. One rides in the gap above or below each
+     reed pair, so collecting is a real choice rather than a freebie. */
+  const FLY_POOL = 6;
+  const FLY_R = 9;
+  const flies = [];
+  for (let i = 0; i < FLY_POOL; i++) flies.push({ x: 0, y: 0, live: false, bob: 0 });
+
+  let flyBank = loadFlies();     // banked across runs, the shop currency
+  let flyRun = 0;                // collected in the current run only
+  let owned = loadOwned();
+  let skin = loadSkin();
+  if (owned.indexOf(skin) === -1) skin = 'classic';
+  let continuesUsed = 0;
+  const CONTINUE_BASE = 25;      // doubles each time within one run
+  function continueCost() { return CONTINUE_BASE * Math.pow(2, continuesUsed); }
 
   /* ══════════════════════════════════════════════════════════
      PRE-RENDERED SCENERY
@@ -402,10 +498,48 @@
     /* imageSmoothingEnabled is off, so the rotation stays pixellated
        rather than turning to mush */
     ctx.drawImage(
-      sheet,
+      sheetFor(skin),
       frame * CELL_W, 0, CELL_W, CELL_H,
       Math.round(-TOAD_W / 2), Math.round(-TOAD_H / 2), TOAD_W, TOAD_H
     );
+    ctx.restore();
+  }
+
+  function drawFlies() {
+    for (let i = 0; i < flies.length; i++) {
+      const f = flies[i];
+      if (!f.live) continue;
+      const y = f.y + Math.sin(f.bob) * 4;
+      const wing = Math.sin(f.bob * 3) * 3;
+      ctx.save();
+      ctx.translate(Math.round(f.x), Math.round(y));
+      ctx.fillStyle = 'rgba(255,255,255,.55)';
+      ctx.beginPath(); ctx.ellipse(-4, -3 + wing, 5, 2.5, -0.5, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(4, -3 - wing, 5, 2.5, 0.5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#1b1b22';
+      ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#a8ff1a';
+      ctx.beginPath(); ctx.arc(0, 0, 2.4, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  function drawFlyCount() {
+    if (state !== STATE.PLAY && state !== STATE.DYING) return;
+    ctx.save();
+    ctx.font = '700 18px Tahoma, "Segoe UI", sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = '#1b1b22';
+    ctx.beginPath(); ctx.arc(22, 45, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#a8ff1a';
+    ctx.beginPath(); ctx.arc(22, 45, 2.4, 0, Math.PI * 2); ctx.fill();
+    const txt = String(flyRun);
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#0b2a14';
+    ctx.strokeText(txt, 34, 36);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(txt, 34, 36);
     ctx.restore();
   }
 
@@ -434,8 +568,10 @@
 
     blitWrapped(groundLayer, PLAY_H, scrollX);
 
+    drawFlies();
     drawToad();
     drawScore();
+    drawFlyCount();
 
     if (flash > 0) {
       ctx.fillStyle = 'rgba(255,255,255,' + (flash / 8 * 0.55).toFixed(3) + ')';
@@ -471,6 +607,20 @@
     ob.scored = false;
     ob.live = true;
     spawnX += SPACING_MIN + Math.random() * (SPACING_MAX - SPACING_MIN);
+
+    /* Two in three reeds carry a fly. It sits in the gap the player already
+       has to fly through, high enough that taking it costs a little height. */
+    if (Math.random() < 0.66) spawnFly(ob.x + OB_W / 2, SIT_Y - ob.h - 46);
+  }
+
+  function spawnFly(x, y) {
+    let f = null;
+    for (let i = 0; i < flies.length; i++) if (!flies[i].live) { f = flies[i]; break; }
+    if (!f) return;
+    f.x = x;
+    f.y = Math.max(CEILING + FLY_R + 4, Math.min(SIT_Y - 20, y));
+    f.bob = Math.random() * Math.PI * 2;
+    f.live = true;
   }
 
   /* Foot-anchored box, deliberately much tighter than the drawn sprite. */
@@ -521,6 +671,23 @@
       }
       /* spawnX is where the next clump goes; once that slot reaches the
          right edge, place it and book the following one */
+      for (let i = 0; i < flies.length; i++) {
+        const f = flies[i];
+        if (!f.live) continue;
+        f.x -= speed;
+        f.bob += 0.14;
+        if (f.x + FLY_R < -20) { f.live = false; continue; }
+        /* circle against the toad's tighter body box, so a fly is never
+           collected through a reed the toad actually clipped */
+        const dx = f.x - (TOAD_X + TOAD_W / 2);
+        const dy = (f.y + Math.sin(f.bob) * 4) - toad.y;
+        if (dx * dx + dy * dy < (FLY_R + TOAD_W * 0.34) * (FLY_R + TOAD_W * 0.34)) {
+          f.live = false;
+          flyRun++;
+          Sound.fly();
+        }
+      }
+
       spawnX -= speed;
       if (spawnX <= W + 8) spawnObstacle();
     }
@@ -598,6 +765,44 @@
   /* ══════════════════════════════════════════════════════════
      SCREENS
      ══════════════════════════════════════════════════════════ */
+  function syncFlyLabels() {
+    if (elBankFlies) elBankFlies.textContent = flyBank;
+    if (elMenuFlies) elMenuFlies.textContent = flyBank;
+  }
+
+  function renderShop() {
+    if (!elShopList) return;
+    elShopList.innerHTML = '';
+    SKINS.forEach(function (s) {
+      const has = owned.indexOf(s.id) !== -1;
+      const on  = skin === s.id;
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'shop__row' + (on ? ' is-on' : '');
+      row.innerHTML =
+        '<span class="shop__name">' + s.name + '</span>' +
+        '<span class="shop__tag">' +
+          (on ? 'Equipped' : has ? 'Equip' : ('◉ ' + s.price)) +
+        '</span>';
+      if (!has && flyBank < s.price) row.disabled = true;
+      row.addEventListener('click', function () {
+        if (!has) {
+          if (flyBank < s.price) return;
+          flyBank -= s.price;
+          saveFlies(flyBank);
+          owned = owned.concat([s.id]);
+          saveOwned(owned);
+          Sound.buy();
+        }
+        skin = s.id;
+        saveSkin(skin);
+        syncFlyLabels();
+        renderShop();
+      });
+      elShopList.appendChild(row);
+    });
+  }
+
   function showMenu() {
     state = STATE.MENU;
     elMenu.hidden = false;
@@ -618,6 +823,9 @@
     toad.since = 99;
     lastTall = false;
     for (let i = 0; i < obstacles.length; i++) obstacles[i].live = false;
+    for (let i = 0; i < flies.length; i++) flies[i].live = false;
+    flyRun = 0;
+    continuesUsed = 0;
     spawnX = W + 190;               // a run-up before the first reed
   }
 
@@ -641,8 +849,58 @@
       ? 'Not one reed. Brutal.'
       : (score < 5 ? 'The toad has stopped hopping.'
       : (score < 15 ? 'Respectable hopping.' : 'Certified pond royalty.'));
+    /* Bank the run's flies exactly once, here — not on collection — so a
+       tab closed mid-run cannot bank flies for a run that never ended, and
+       a continue keeps spending from the same banked pot. */
+    const earned = flyRun;
+    flyBank += earned;
+    saveFlies(flyBank);
+    flyRun = 0;
+
+    elRunFlies.textContent = earned;
+    syncFlyLabels();
+
+    const cost = continueCost();
+    const affordable = flyBank >= cost && score > 0;
+    elContinue.hidden = !affordable;
+    elContinueCost.textContent = cost;
+
+    elShare.href = 'https://x.com/intent/tweet?text=' + encodeURIComponent(
+      'I got ' + score + ' on Hoppy Toad 🐸\n\nthetoadmeme.com'
+    );
+
     elOver.hidden = false;
     elMenuBest.textContent = best;
+  }
+
+  /* Continue resumes the same run: the score stays, the reeds near the toad
+     are cleared so he does not respawn inside one, and the price doubles so
+     a run cannot be bought indefinitely. */
+  function continueRun() {
+    const cost = continueCost();
+    if (state !== STATE.OVER || flyBank < cost) return;
+    flyBank -= cost;
+    saveFlies(flyBank);
+    continuesUsed++;
+    syncFlyLabels();
+
+    for (let i = 0; i < obstacles.length; i++) {
+      if (obstacles[i].live && obstacles[i].x < W + 60) obstacles[i].live = false;
+    }
+    for (let i = 0; i < flies.length; i++) {
+      if (flies[i].live && flies[i].x < W + 60) flies[i].live = false;
+    }
+    spawnX = W + 190;
+    toad.y = SIT_Y;
+    toad.vy = 0;
+    toad.angle = 0;
+    toad.grounded = true;
+    toad.jumps = 2;
+    toad.since = 99;
+    flash = 8;
+    elOver.hidden = true;
+    state = STATE.PLAY;
+    Sound.wake();
   }
 
   /* One hop off the ground, one more in mid-air. The second is weaker, so a
@@ -667,6 +925,8 @@
   let pointerInside = false;
 
   function primaryAction() {
+    /* With the shop open, a tap or SPACE must not start a run behind it. */
+    if (elShop && !elShop.hidden) return;
     if (state === STATE.MENU) { startGame(); return; }
     if (state === STATE.PLAY) { jump(); return; }
     if (state === STATE.OVER) { startGame(); return; }
@@ -702,6 +962,18 @@
   btnStart.addEventListener('click', function (e) { e.stopPropagation(); root.focus({ preventScroll: true }); startGame(); });
   btnRetry.addEventListener('click', function (e) { e.stopPropagation(); root.focus({ preventScroll: true }); startGame(); });
   btnMenu.addEventListener('click', function (e) { e.stopPropagation(); showMenu(); });
+  if (elContinue) elContinue.addEventListener('click', function (e) {
+    e.stopPropagation(); root.focus({ preventScroll: true }); continueRun();
+  });
+  /* The share link opens a new tab on its own; it must not also be read as
+     a tap on the canvas, which would restart the run behind it. */
+  if (elShare) elShare.addEventListener('click', function (e) { e.stopPropagation(); });
+  if (btnShop) btnShop.addEventListener('click', function (e) {
+    e.stopPropagation(); renderShop(); elShop.hidden = false;
+  });
+  if (btnShopClose) btnShopClose.addEventListener('click', function (e) {
+    e.stopPropagation(); elShop.hidden = true;
+  });
   btnSnd.addEventListener('click', function (e) {
     e.stopPropagation();
     btnSnd.textContent = Sound.toggle() ? '🔇' : '🔊';
@@ -750,7 +1022,20 @@
       get speed() { return speed; },
       consts: { W: W, PLAY_H: PLAY_H, TOAD_X: TOAD_X, OB_W: OB_W, SIT_Y: SIT_Y, FEET: FEET, HIT_W: HIT_W },
       hop: function () { primaryAction(); },
-      STATE: STATE
+      STATE: STATE,
+      get flyRun() { return flyRun; },
+      get flyBank() { return flyBank; },
+      get skin() { return skin; },
+      get owned() { return owned.slice(); },
+      get flies() {
+        return flies.filter(function (f) { return f.live; })
+                    .map(function (f) { return { x: f.x, y: f.y }; })
+                    .sort(function (a, b) { return a.x - b.x; });
+      },
+      get continueCost() { return continueCost(); },
+      /* Advance the simulation deterministically instead of waiting on
+         requestAnimationFrame, so a test can play a whole run in one turn. */
+      step: function (n) { for (let i = 0; i < (n || 1); i++) tick(); }
     };
   }
 
@@ -762,6 +1047,7 @@
     }
     buildScenery();
     elLoad.hidden = true;
+    syncFlyLabels();
     showMenu();
     startLoop();
   };

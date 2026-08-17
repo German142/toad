@@ -268,3 +268,62 @@ kbd {
 @media (prefers-reduced-motion: reduce) {
   .dlg { animation: none; }
 }
+
+/* ══════════════════════════════════════════════════════════
+   FLIES, CONTINUE, SHARE, SHOP
+   ══════════════════════════════════════════════════════════ */
+.fly { color: #2f6b18; white-space: nowrap; }
+
+.dlg__bank { margin: 10px 0 8px; font-size: 11px; color: #4a5a4c; }
+.dlg__bank b { font-size: 13px; }
+
+/* The continue button is the one the player is meant to reach for, so it
+   gets the amber treatment the retry button deliberately does not. */
+.xpb--cont {
+  display: block;
+  margin: 0 auto 10px;
+  font-weight: 700;
+  border-color: #7a5a00;
+  background: linear-gradient(180deg, #fff6cf, #ffe08a 46%, #f0b429 100%);
+}
+.xpb--cont:hover { background: linear-gradient(180deg, #fffbe8, #ffe9a8 46%, #ffc94a 100%); }
+
+.xpb--share {
+  display: inline-block;
+  margin-top: 4px;
+  text-decoration: none;
+  font-size: 11px;
+  min-width: 0;
+}
+
+.dlg--shop .dlg__body { padding-bottom: 14px; }
+
+.shop {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 14px;
+  text-align: left;
+}
+.shop__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  font: 400 12px var(--ui);
+  color: #000;
+  cursor: pointer;
+  border: 1px solid #7f9db9;
+  background: linear-gradient(180deg, #fff, #eef3f9);
+}
+.shop__row:hover:not(:disabled) { border-color: #0a70c8; background: linear-gradient(180deg, #fff, #dcecfb); }
+.shop__row:disabled { opacity: .45; cursor: default; }
+.shop__row.is-on {
+  border-color: #14561f;
+  background: linear-gradient(180deg, #f2fbe9, #dcf0c8);
+}
+.shop__name { font-weight: 700; }
+.shop__tag { font-size: 11px; color: #2f6b18; white-space: nowrap; }
+.shop__row.is-on .shop__tag { color: #14561f; }

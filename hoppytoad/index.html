@@ -56,7 +56,11 @@
         <p class="dlg__hint">Click, tap or press <kbd>SPACE</kbd> to hop<br />
           <span class="dlg__hint2">Hop twice in the air to clear the tall reeds</span></p>
         <p class="dlg__best">Best score: <b id="htMenuBest">0</b></p>
-        <button class="xpb xpb--go" id="htStart" type="button">Start Game</button>
+        <p class="dlg__best">Flies: <b class="fly">◉ <span id="htMenuFlies">0</span></b></p>
+        <div class="dlg__row">
+          <button class="xpb xpb--go" id="htStart" type="button">Start Game</button>
+          <button class="xpb" id="htShopBtn" type="button">Shop</button>
+        </div>
       </div>
     </div>
 
@@ -72,13 +76,34 @@
         <div class="dlg__scores">
           <div><span>Score</span><b id="htScore">0</b></div>
           <div><span>Best</span><b id="htBest">0</b></div>
+          <div><span>Flies</span><b class="fly">◉ <span id="htRunFlies">0</span></b></div>
         </div>
         <p class="dlg__new" id="htNew" hidden>★ New personal best ★</p>
+        <button class="xpb xpb--cont" id="htContinue" type="button" hidden>
+          Keep hopping · ◉ <span id="htContinueCost">25</span>
+        </button>
         <div class="dlg__row">
           <button class="xpb xpb--go" id="htRetry" type="button">Play Again</button>
           <button class="xpb" id="htMenuBtn" type="button">Main Menu</button>
         </div>
+        <p class="dlg__bank">Banked: <b class="fly">◉ <span id="htBankFlies">0</span></b></p>
+        <a class="xpb xpb--share" id="htShare" href="https://x.com/thetoadmeme_"
+           target="_blank" rel="noopener">Share score on 𝕏</a>
         <p class="dlg__hint dlg__hint--sm">or press <kbd>SPACE</kbd></p>
+      </div>
+    </div>
+
+    <!-- ─────────── shop ─────────── -->
+    <div class="dlg dlg--shop" id="htShop" hidden>
+      <div class="dlg__bar">
+        <img class="dlg__ico" src="assets/icon-32.png" alt="" />
+        <span class="dlg__title">Toad Shop</span>
+        <span class="dlg__btns"><i>_</i><i>□</i><b>✕</b></span>
+      </div>
+      <div class="dlg__body">
+        <p class="dlg__sub">Flies buy colours. Colours buy nothing.</p>
+        <div class="shop" id="htShopList"></div>
+        <button class="xpb" id="htShopClose" type="button">Back</button>
       </div>
     </div>
 
