@@ -25,6 +25,14 @@ const CHANNELS = [
   { ch:'91', name:'THE VAULT',    tag:'Heist III',    file:'heist3_alarm',           poster:'poster-vault.jpg'  },
   { ch:'92', name:'THE SOURCE',   tag:'Green code',   file:'TOAD_matrix_4_web',      poster:'poster-source.jpg' },
   { ch:'93', name:'GOLDEN LIGHT', tag:'Aftermath II', file:'aftermath2_goldenlight', poster:'poster-march.jpg'  },
+  { ch:'94', name:'THE ENTRANCE', tag:'Drywall',      file:'entrance_drywall',       poster:'poster-entrance_drywall.jpg' },
+  { ch:'95', name:'RED LIGHTS',   tag:'Basement',     file:'red_lights',             poster:'poster-red_lights.jpg'       },
+  { ch:'96', name:'FULL THROTTLE',tag:'Roadside',     file:'full_throttle',          poster:'poster-full_throttle.jpg'    },
+  { ch:'97', name:'THE ROOFTOP',  tag:'Stunt tape',   file:'rooftop_stunt',          poster:'poster-rooftop_stunt.jpg'    },
+  { ch:'98', name:'THE TITLE',    tag:'Ringside',     file:'ring_title',             poster:'poster-ring_title.jpg'       },
+  { ch:'99', name:'NIGHT SHIFT',  tag:'Grinding',     file:'night_shift',            poster:'poster-night_shift.jpg'      },
+  { ch:'100',name:'COLD OPEN',    tag:'Ice',          file:'cold_open',              poster:'poster-cold_open.jpg'        },
+  { ch:'101',name:'LAST CALL',    tag:'Aftermath',    file:'last_call',              poster:'poster-last_call.jpg'        },
 ];
 
 /* ── the archive ── */
@@ -231,7 +239,7 @@ function login() {
    ══════════════════════════════════════════════════════════════ */
 const APPS = {
   explorer:   { title:'Toad Explorer',         icon:'ic-explorer',   tpl:'app-explorer',   w:1000, h:660, status:'Done — the pond', mount:mountExplorer },
-  canal88:    { title:'Canal 88 Player',       icon:'ic-canal88',    tpl:'app-canal88',    w:660,  h:620, status:'6 tapes in the playlist', mount:mountPlayer },
+  canal88:    { title:'Canal 88 Player',       icon:'ic-canal88',    tpl:'app-canal88',    w:660,  h:620, status:`${CHANNELS.length} tapes in the playlist`, mount:mountPlayer },
   hoppytoad:  { title:'Hoppy Toad',            icon:'/hoppytoad/assets/icon-192.png', tpl:'app-hoppytoad', w:430, h:700, status:'One button. He jumps.', mount:mountHoppy },
   /* title and status count the array rather than hardcoding it, so adding a
      meme is still a one-line change */
@@ -464,7 +472,7 @@ function boot() {
   buildStartMenu();
   clock();
   WM.launch('explorer');
-  setTimeout(() => assistant("Welcome, fren. Everything lives behind the start button — or double-click an icon. Canal 88 has six tapes."), 1400);
+  setTimeout(() => assistant(`Welcome, fren. Everything lives behind the start button — or double-click an icon. Canal 88 has ${CHANNELS.length} tapes.`), 1400);
 }
 
 function buildIcons() {
@@ -511,7 +519,7 @@ function buildStartMenu() {
   left.innerHTML = ''; right.innerHTML = '';
   left.append(
     item('ic-explorer', 'Toad Explorer', 'The whole story', () => WM.launch('explorer')),
-    item('ic-canal88',  'Canal 88 Player', '6 tapes', () => WM.launch('canal88')),
+    item('ic-canal88',  'Canal 88 Player', `${CHANNELS.length} tapes`, () => WM.launch('canal88')),
     item('/hoppytoad/assets/icon-192.png', 'Hoppy Toad', 'One button. He jumps.', () => WM.launch('hoppytoad')),
     item('ic-memes',    'Evidence', `${MEMES.length} memes`, () => WM.launch('memes')),
     sep(),
