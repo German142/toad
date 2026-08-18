@@ -249,6 +249,7 @@ const APPS = {
   /* title and status count the array rather than hardcoding it, so adding a
      meme is still a one-line change */
   paint:      { title:'Toad Paint',            icon:'ic-paint',      tpl:'app-paint',      w:640,  h:560, status:'Untitled - Toad Paint', mount:mountPaint },
+  chat:       { title:'Toad Messenger',          icon:'ic-chat',       tpl:'app-chat',       w:520,  h:560, status:'The Pond', mount:mountChat },
   gallery:    { title:'Toad Gallery',          icon:'ic-gallery',    tpl:'app-gallery',    w:700,  h:520, status:'Drawings from the pond', mount:mountGallery },
   memes:      { title:`Evidence — ${MEMES.length} objects`, icon:'ic-memes', tpl:'app-memes', w:640, h:500, status:`${MEMES.length} objects`, mount:mountMemes },
   viewer:     { title:'Toad Viewer',           icon:'ic-viewer',     tpl:'app-viewer',     w:720,  h:600, status:'', mount:mountViewer },
@@ -273,6 +274,7 @@ const DESKTOP_ICONS = [
   { link:'tiktok',    label:'TikTok',        icon:'ic-tiktok' },
   { app:'toadrun',    label:'Toad Run' },
   { app:'paint',      label:'Toad Paint' },
+  { app:'chat',       label:'Messenger' },
   { app:'gallery',    label:'Gallery' },
   { app:'chart',      label:'Live Chart' },
   { app:'memes',      label:'Evidence' },
@@ -920,6 +922,7 @@ const ASSIST_LINES = [
    without anybody having to announce it anywhere. Keep the oldest few and
    drop the rest, or the news stops being news. */
 const NEWS_LINES = [
+  'New: Toad Messenger. One public room, like it is 2003. No links, no DMs, no seed phrases.',
   'New: the public gallery. Anything drawn in Toad Paint can go up on the wall.',
   'New: you can vote on other people\u2019s drawings. Open the Gallery and press the heart.',
   'New in Toad Paint: stamps. Drop one, then drag it, resize it from a corner, or throw it away.',
@@ -1024,6 +1027,7 @@ const GAL_HEAD = { apikey: GAL_KEY, Authorization: 'Bearer ' + GAL_KEY, 'Content
    picture is not. */
 const GAL_VIEW = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/toad_gallery_public';
 const GAL_RPC  = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_vote';
+const GAL_FLAG = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_report';
 const VOTER_KEY = 'toados.voter', VOTED_KEY = 'toados.voted';
 
 /* A random name for this browser. It is not an identity and does not pretend
@@ -1058,6 +1062,53 @@ async function galleryFetch(order) {
   return r.json();
 }
 
+/* ── the pond ──────────────────────────────────────────────────
+   A single public room. No accounts, no private messages, no links --
+   the database refuses all three, so the browser never has to be trusted
+   about it. Messages are read by polling rather than a socket: it needs no
+   library, no second origin in the security policy, and at this size the
+   difference is invisible. */
+const CHAT_URL  = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/toad_chat';
+const CHAT_CFG  = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/toad_chat_config';
+const CHAT_RPC  = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_say';
+const NICK_KEY  = 'toados.nick';
+const NUDGE = '*nudge*';
+
+async function chatFetch(sinceId) {
+  const q = sinceId ? '&id=gt.' + sinceId : '';
+  const r = await fetch(CHAT_URL + '?select=id,created_at,nick,body,speaker&order=id.asc&limit=80' + q, { headers: GAL_HEAD });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+async function chatOpen() {
+  const r = await fetch(CHAT_CFG + '?select=enabled,notice&limit=1', { headers: GAL_HEAD });
+  if (!r.ok) return { enabled: true };
+  return (await r.json())[0] || { enabled: true };
+}
+async function chatSay(nick, body) {
+  const r = await fetch(CHAT_RPC, {
+    method: 'POST', headers: GAL_HEAD,
+    body: JSON.stringify({ nick, body, speaker: voterToken() }),
+  });
+  if (!r.ok) {
+    let m = 'that did not go through';
+    try { m = (JSON.parse(await r.text()).message) || m; } catch (e) {}
+    throw new Error(m);
+  }
+  return r.json();
+}
+
+/* Pictures go up instantly now, so the brake sits behind them instead of in
+   front: enough people calling something wrong takes it down on its own. */
+async function galleryReport(id) {
+  const r = await fetch(GAL_FLAG, {
+    method: 'POST', headers: GAL_HEAD,
+    body: JSON.stringify({ pic: id, reporter: voterToken() }),
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
 async function galleryVote(id) {
   const r = await fetch(GAL_RPC, {
     method: 'POST', headers: GAL_HEAD,
@@ -1074,6 +1125,114 @@ async function gallerySubmit(name, dataUrl) {
     body: JSON.stringify({ name: name.slice(0, 24), image: dataUrl }),
   });
   if (!r.ok) throw new Error(await r.text());
+}
+
+const CHAT_EMOS = ['\uD83D\uDC38', '\uD83C\uDF7A', '\uD83D\uDCC8', '\uD83D\uDCC9', '\uD83D\uDD25', '\uD83D\uDC8E', '\uD83E\uDD1D', '\uD83D\uDE02', '\uD83D\uDE2D', '\uD83D\uDC40', '\uD83C\uDF19', '\u2764\uFE0F'];
+
+function mountChat(win) {
+  const log = $('#chLog', win), body = $('#chBody', win), nick = $('#chNick', win);
+  const who = $('#chWho', win), state = $('#chState', win), emos = $('#chEmos', win);
+  let lastId = 0, timer = null, dead = false, mine = voterToken();
+
+  try { nick.value = localStorage.getItem(NICK_KEY) || ''; } catch (e) {}
+  nick.addEventListener('change', () => {
+    try { localStorage.setItem(NICK_KEY, nick.value.trim().slice(0, 18)); } catch (e) {}
+  });
+
+  CHAT_EMOS.forEach(ch => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'msn__emo'; b.textContent = ch;
+    b.addEventListener('click', () => { body.value += ch; body.focus(); });
+    emos.appendChild(b);
+  });
+
+  const stamp = iso => {
+    const d = new Date(iso);
+    return isNaN(d) ? '' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  function add(row) {
+    if (row.body === NUDGE) {
+      const l = document.createElement('p');
+      l.className = 'msn__nudged';
+      l.textContent = `${row.nick} just sent you a nudge!`;   // textContent: a stranger's text
+      log.appendChild(l);
+      win.classList.remove('is-nudged'); void win.offsetWidth; win.classList.add('is-nudged');
+      Sound.blip(300, .09, .05);
+      return;
+    }
+    const l = document.createElement('p');
+    l.className = 'msn__line' + (row.speaker === mine ? ' is-me' : '');
+    const n = document.createElement('b');
+    n.textContent = row.nick + ' says:';                      // textContent, always
+    const t = document.createElement('i');
+    t.textContent = stamp(row.created_at);
+    const txt = document.createElement('span');
+    txt.textContent = row.body;
+    l.append(n, t, txt);
+    log.appendChild(l);
+  }
+
+  async function poll(first) {
+    if (dead) return;
+    try {
+      if (first) {
+        const cfg = await chatOpen();
+        if (!cfg.enabled) {
+          state.textContent = 'closed';
+          who.textContent = cfg.notice || 'The room is closed for now.';
+          body.disabled = true; $('#chSend', win).disabled = true; $('#chNudge', win).disabled = true;
+          dead = true; return;
+        }
+      }
+      const rows = await chatFetch(lastId);
+      const stuck = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+      rows.forEach(r => { add(r); lastId = Math.max(lastId, r.id); });
+      if (rows.length && stuck) log.scrollTop = log.scrollHeight;
+      state.textContent = '';
+      /* Counting distinct voices in the last five minutes is honest and cheap;
+         it is not presence, and it does not pretend to be. */
+      const heads = new Set([...log.querySelectorAll('.msn__line b')].slice(-40).map(b => b.textContent));
+      who.textContent = heads.size ? `${heads.size} ${heads.size === 1 ? 'toad has' : 'toads have'} spoken recently` : 'quiet in here';
+    } catch (e) {
+      state.textContent = 'offline';
+    }
+    timer = setTimeout(() => poll(false), document.hidden ? 15000 : 3000);
+  }
+
+  async function send(text) {
+    const n = nick.value.trim();
+    if (!n) { toast('Pick a name first — the box on the right.'); nick.focus(); return; }
+    const t = (text !== undefined ? text : body.value).trim();
+    if (!t) return;
+    $('#chSend', win).disabled = true;
+    try {
+      await chatSay(n, t);
+      if (text === undefined) body.value = '';
+      await poll(false);                    // show it without waiting for the tick
+    } catch (e) {
+      toast(e.message === 'no links in here'
+        ? 'No links in here — that rule is what keeps this room safe.'
+        : e.message === 'slow down' ? 'Slow down a moment.' : 'That did not go through.');
+    }
+    $('#chSend', win).disabled = false;
+    body.focus();
+  }
+
+  $('#chSend', win).addEventListener('click', () => send());
+  $('#chNudge', win).addEventListener('click', () => send(NUDGE));
+  body.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+  });
+
+  /* Stop polling when the window is gone, or a closed messenger keeps asking
+     the server about a room nobody is looking at. */
+  const obs = new MutationObserver(() => {
+    if (!win.isConnected) { dead = true; clearTimeout(timer); obs.disconnect(); }
+  });
+  obs.observe(document.body, { childList: true, subtree: true });
+
+  poll(true);
 }
 
 function mountGallery(win) {
@@ -1095,21 +1254,34 @@ function mountGallery(win) {
     const mine = votedSet().has(row.id);
     btn.textContent = label(row.votes || 0, mine);
     btn.classList.toggle('is-mine', mine);
-    btn.title = mine ? 'You voted for this. Press again to take it back.' : 'Vote for this drawing';
+    btn.title = mine ? 'You already gave this one a heart.' : 'Give this drawing a heart';
   }
 
+  /* A heart cannot be taken back. It used to toggle, and taking one back
+     looked exactly like the count vanishing on its own. */
   async function cast(row, ...btns) {
+    if (votedSet().has(row.id)) { toast('You already gave that one a heart.'); return; }
     btns.forEach(b => b && (b.disabled = true));
     try {
       const res = await galleryVote(row.id);
       row.votes = res.votes;
-      rememberVote(row.id, res.mine);
+      rememberVote(row.id, true);
       btns.forEach(b => b && paintVote(b, row));
-      Sound.blip(res.mine ? 980 : 520, .05, .03);
+      Sound.blip(980, .05, .03);
     } catch (e) {
-      toast('That vote did not go through.');
+      toast('That heart did not go through.');
     }
     btns.forEach(b => b && (b.disabled = false));
+  }
+
+  async function report(row) {
+    if (!confirm('Report this drawing as not okay?\n\nEnough reports take it down until someone looks at it.')) return;
+    try {
+      await galleryReport(row.id);
+      toast('Reported. Thank you — enough reports take it down on their own.');
+    } catch (e) {
+      toast('That report did not go through.');
+    }
   }
 
   function show(row) {
@@ -1124,6 +1296,7 @@ function mountGallery(win) {
   const back = () => { view.hidden = true; open = null; };
 
   $('#galBack', win).addEventListener('click', back);
+  $('#galFlag', win).addEventListener('click', () => { if (open) report(open); });
   voteBtn.addEventListener('click', () => {
     if (!open) return;
     const tile = grid.querySelector(`[data-id="${open.id}"] .gal__tilevote`);
@@ -1551,7 +1724,7 @@ function mountPaint(win) {
     btn.disabled = true;
     try {
       await gallerySubmit(name, exportForGallery());
-      toast('Sent. It appears in the gallery once it has been looked at.');
+      toast('Up on the wall. Open the Gallery to see it.');
     } catch (e) {
       toast('That did not go through. Maybe the drawing is too large — try clearing some of it.');
     }

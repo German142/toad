@@ -1005,3 +1005,65 @@ input, textarea{ cursor:text; }
   .gal__viewbar { flex-wrap:wrap; }
   .gal__title { flex:1 1 100%; order:3; }
 }
+
+/* ── Toad Messenger ──────────────────────────────────────────── */
+.msn { display:flex; flex-direction:column; height:100%; min-height:0; background:#fff; }
+
+.msn__head {
+  flex:none; display:flex; align-items:center; gap:9px; padding:7px 9px;
+  background:linear-gradient(#eaf3fd,#cfe3f8 55%,#bcd8f4);
+  border-bottom:1px solid #8fb4d9;
+}
+.msn__pic { width:36px; height:36px; flex:none; border:1px solid #7c9dbf; background:#fff; padding:1px; }
+.msn__pic img { width:100%; height:100%; object-fit:contain; display:block; }
+.msn__who { display:flex; flex-direction:column; line-height:1.25; min-width:0; }
+.msn__who b { font-size:13px; color:#12365e; }
+.msn__who span { font-size:11px; color:#4a6a8c; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.msn__state { margin-left:auto; font-size:11px; color:#b3261e; }
+
+.msn__log {
+  flex:1; min-height:0; overflow-y:auto; padding:8px 10px;
+  background:#fff; border-bottom:1px solid #cdd3da;
+  font-size:12.5px; line-height:1.5;
+}
+.msn__line { margin:0 0 5px; word-wrap:break-word; overflow-wrap:anywhere; }
+.msn__line b { color:#1f5fa8; margin-right:5px; }
+.msn__line.is-me b { color:#c0392b; }
+.msn__line i { color:#95a0ad; font-size:10.5px; font-style:normal; margin-right:6px; }
+.msn__nudged { margin:6px 0; padding:4px 8px; background:#fff6d6; border:1px solid #e6cf82;
+               color:#7a5f00; font-size:11.5px; }
+
+.msn__tools {
+  flex:none; display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+  padding:5px 8px; background:var(--face); border-bottom:1px solid #b8bcc0;
+}
+.msn__emos { display:flex; gap:1px; flex-wrap:wrap; }
+.msn__emo { border:1px solid transparent; background:none; cursor:pointer; font-size:15px;
+            line-height:1; padding:2px 3px; border-radius:3px; }
+.msn__emo:hover { border-color:#7f9db9; background:#fff; }
+.msn__nick { margin-left:auto; font-size:11px; color:#3b4450; display:flex; align-items:center; gap:4px; }
+.msn__nick input { width:110px; font:inherit; font-size:11px; padding:2px 5px;
+                   border:1px solid #7f9db9; box-shadow:inset 1px 1px 0 #b8c8da; }
+
+.msn__compose { flex:none; display:flex; gap:6px; padding:7px 8px; align-items:stretch; }
+.msn__compose textarea {
+  flex:1; resize:none; font:inherit; font-size:12.5px; padding:5px 6px;
+  border:1px solid #7f9db9; box-shadow:inset 1px 1px 0 #b8c8da;
+}
+.msn__rule { flex:none; margin:0; padding:5px 9px 7px; font-size:10.5px; color:#5d646e;
+             border-top:1px solid #e3e6ea; background:#f7f8fa; }
+
+/* the nudge, exactly as rude as it was in 2003 */
+@keyframes msn-nudge {
+  0%,100% { transform:translate(0,0); }
+  15% { transform:translate(-7px,4px); } 30% { transform:translate(6px,-5px); }
+  45% { transform:translate(-5px,-3px); } 60% { transform:translate(5px,4px); }
+  75% { transform:translate(-3px,2px); }
+}
+.win.is-nudged { animation:msn-nudge .5s ease-in-out; }
+@media (prefers-reduced-motion:reduce){ .win.is-nudged { animation:none; } }
+
+@media (max-width:640px){
+  .msn__nick { margin-left:0; width:100%; }
+  .msn__nick input { flex:1; width:auto; }
+}
