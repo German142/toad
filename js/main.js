@@ -499,6 +499,182 @@ addEventListener('message', e => {
   if (e.origin === location.origin && e.data && e.data.type === 'toadrun:quit') quitGame();
 });
 
+/* ══════════════════════════════════════════════════════════════
+   DESKTOP ICONS — drag, snap, remember
+   Icons sit on a grid of squares. Drag one and it lands in the
+   nearest free square, exactly like the machine this imitates,
+   and the arrangement survives a reload.
+   ══════════════════════════════════════════════════════════════ */
+const CELL_W = 104, CELL_H = 106;
+const SPOT_KEY = 'toados.icons';
+
+function loadIconSpots() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SPOT_KEY) || '{}');
+    return (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
+  } catch (e) { return {}; }
+}
+function saveIconSpots(spots) {
+  try { localStorage.setItem(SPOT_KEY, JSON.stringify(spots)); } catch (e) {}
+}
+
+/* How many squares fit down the screen before the taskbar cuts them off. */
+function gridRows() {
+  const host = $('#icons');
+  const h = host ? host.clientHeight : innerHeight - 90;
+  return Math.max(1, Math.floor(h / CELL_H));
+}
+function firstFreeCell(taken, from = 0) {
+  const rows = gridRows();
+  for (let i = from; i < from + 200; i++) {
+    const c = Math.floor(i / rows), r = i % rows;
+    if (!taken.has(c + ',' + r)) return { c, r };
+  }
+  return { c: 0, r: 0 };
+}
+function placeIcon(el, cell) {
+  el.style.left = (cell.c * CELL_W) + 'px';
+  el.style.top  = (cell.r * CELL_H) + 'px';
+  el.dataset.c = cell.c;
+  el.dataset.r = cell.r;
+}
+
+function makeIconDraggable(el) {
+  let sx = 0, sy = 0, ox = 0, oy = 0, moved = false, id = null;
+
+  el.addEventListener('pointerdown', e => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    id = e.pointerId; moved = false;
+    sx = e.clientX; sy = e.clientY;
+    ox = parseFloat(el.style.left) || 0;
+    oy = parseFloat(el.style.top)  || 0;
+    /* Capture keeps the drag alive when the cursor outruns the icon. Some
+       pointers refuse it; the drag still works, it just needs the cursor to
+       stay over the element — better than losing the handler to a throw. */
+    try { el.setPointerCapture(id); } catch (err) {}
+  });
+
+  el.addEventListener('pointermove', e => {
+    if (id === null || e.pointerId !== id) return;
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    /* Four pixels of slack: a click stays a click, and a double-click still
+       opens the app instead of nudging it half a square. */
+    if (!moved && Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
+    moved = true;
+    el.classList.add('is-dragging');
+    el.style.left = (ox + dx) + 'px';
+    el.style.top  = (oy + dy) + 'px';
+  });
+
+  const drop = e => {
+    if (id === null || (e && e.pointerId !== id)) return;
+    try { el.releasePointerCapture(id); } catch (err) {}
+    id = null;
+    if (!moved) return;
+    el.classList.remove('is-dragging');
+
+    const host = $('#icons');
+    const maxC = Math.max(0, Math.floor((host.clientWidth  - CELL_W) / CELL_W));
+    const maxR = gridRows() - 1;
+    let c = clamp(Math.round(parseFloat(el.style.left) / CELL_W), 0, maxC);
+    let r = clamp(Math.round(parseFloat(el.style.top)  / CELL_H), 0, maxR);
+
+    /* If the square is occupied, the dropped icon takes it and the previous
+       tenant moves to the nearest free one — nothing is ever hidden under
+       another icon. */
+    const other = $$('.icon', host).find(o => o !== el && +o.dataset.c === c && +o.dataset.r === r);
+    placeIcon(el, { c, r });
+    if (other) {
+      const taken = new Set($$('.icon', host).map(o => o.dataset.c + ',' + o.dataset.r));
+      placeIcon(other, firstFreeCell(taken));
+    }
+
+    const spots = {};
+    $$('.icon', host).forEach(o => { spots[o.dataset.spot] = { c: +o.dataset.c, r: +o.dataset.r }; });
+    saveIconSpots(spots);
+    Sound.blip(520, .03, .025);
+  };
+  el.addEventListener('pointerup', drop);
+  el.addEventListener('pointercancel', drop);
+  /* A drag that ends on an icon must not also count as opening it. */
+  el.addEventListener('click', e => { if (moved) { e.stopPropagation(); e.preventDefault(); } }, true);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   DESKTOP CONTEXT MENU
+   Right-click the wallpaper, like the machine this is pretending
+   to be. The wallpaper choice is the only thing here that sticks.
+   ══════════════════════════════════════════════════════════════ */
+/* `fit` mirrors the old Display Properties: cover fills the screen, centre
+   sets the picture down at its own shape on a plain ground — which is what a
+   portrait picture needs, since stretching one across a wide monitor costs it
+   its head. Kept for the wallpaper Max is making. */
+const WALLPAPERS = [
+  { id:'bliss',   name:'Bliss',            fit:'cover',  file:'/assets/brand/wallpaper.jpg',         thumb:'/assets/brand/thumb-wallpaper.jpg' },
+  { id:'cloud',   name:'Toad in the Sky',  fit:'cover',  file:'/assets/brand/wallpaper-cloud.jpg',   thumb:'/assets/brand/thumb-wallpaper-cloud.jpg' },
+];
+const WALL_KEY = 'toados.wallpaper';
+
+function applyWallpaper(id, remember = true) {
+  const w = WALLPAPERS.find(x => x.id === id) || WALLPAPERS[0];
+  const el = $('.wall');
+  if (el) {
+    el.src = w.file;
+    el.classList.toggle('wall--centre', w.fit === 'centre');
+  }
+  if (remember) { try { localStorage.setItem(WALL_KEY, w.id); } catch (e) {} }
+  return w.id;
+}
+function savedWallpaper() {
+  try { return localStorage.getItem(WALL_KEY) || 'bliss'; } catch (e) { return 'bliss'; }
+}
+
+let ctxEl = null;
+function closeCtx() { if (ctxEl) { ctxEl.remove(); ctxEl = null; } }
+
+function openCtx(x, y) {
+  closeCtx();
+  const current = savedWallpaper();
+  const menu = document.createElement('ul');
+  menu.className = 'ctx';
+
+  const row = (html, fn, cls = '') => {
+    const li = document.createElement('li');
+    if (cls) li.className = cls;
+    li.innerHTML = html;
+    if (fn) li.addEventListener('click', () => { fn(); closeCtx(); });
+    return li;
+  };
+
+  menu.append(
+    row('<span>Refresh</span>', () => { buildIcons(); Sound.blip(700, .04, .03); }),
+    row('<span>Align icons to grid</span>', () => {
+      try { localStorage.removeItem(SPOT_KEY); } catch (e) {}
+      buildIcons(); Sound.blip(660, .05, .03);
+    }),
+    row('', null, 'sep'),
+    row('<small class="ctx__head">Change wallpaper</small>', null, 'head'),
+  );
+  WALLPAPERS.forEach(w => {
+    menu.appendChild(row(
+      `<img class="ctx__thumb" src="${w.thumb}" alt="" /><span>${w.name}</span>` +
+      (w.id === current ? '<b class="ctx__tick">✓</b>' : ''),
+      () => { applyWallpaper(w.id); Sound.blip(880, .05, .03); },
+    ));
+  });
+  menu.append(
+    row('', null, 'sep'),
+    row('<span>Toggle scanlines</span>', () => $('#scanlines').classList.toggle('is-on')),
+  );
+
+  document.body.appendChild(menu);
+  /* keep it on screen — a menu opened near the right edge must not vanish */
+  const r = menu.getBoundingClientRect();
+  menu.style.left = Math.min(x, innerWidth  - r.width  - 6) + 'px';
+  menu.style.top  = Math.min(y, innerHeight - r.height - 6) + 'px';
+  ctxEl = menu;
+}
+
 /* turn any data-open / data-cfg inside a window into working links */
 function wireLinks(root) {
   $$('[data-open]', root).forEach(el => {
@@ -515,6 +691,7 @@ function wireLinks(root) {
    ══════════════════════════════════════════════════════════════ */
 function boot() {
   $('#desktop').classList.add('is-on');
+  applyWallpaper(savedWallpaper(), false);   // restore the visitor's choice
   buildIcons();
   buildStartMenu();
   clock();
@@ -526,7 +703,9 @@ function boot() {
 function buildIcons() {
   const host = $('#icons');
   host.innerHTML = '';
-  DESKTOP_ICONS.forEach(({ app, label, link, icon }) => {
+  const placed = loadIconSpots();
+  const taken = new Set();
+  DESKTOP_ICONS.forEach(({ app, label, link, icon }, idx) => {
     // an icon either opens an app window or, with `link`, a CONFIG url off-site
     const glyph = icon || APPS[app].icon;
     const openIt = link
@@ -545,12 +724,35 @@ function buildIcons() {
     if (matchMedia('(pointer: coarse)').matches) {
       el.addEventListener('click', openIt);
     }
+
+    /* Every icon carries its own square on the grid. A saved spot wins; the
+       rest fall into the first free square, so the desktop never stacks two
+       icons on top of each other after a rename or a new entry. */
+    const key = app || ('link:' + link);
+    el.dataset.spot = key;
+    let cell = placed[key];
+    if (!cell || taken.has(cell.c + ',' + cell.r)) cell = firstFreeCell(taken, idx);
+    taken.add(cell.c + ',' + cell.r);
+    placeIcon(el, cell);
+    makeIconDraggable(el);
+
     host.appendChild(el);
   });
   $('#desktop').addEventListener('pointerdown', e => {
     if (!e.target.closest('.icon')) $$('.icon', host).forEach(i => i.classList.remove('is-sel'));
     if (!e.target.closest('#startMenu') && !e.target.closest('#startBtn')) closeStart();
+    if (!e.target.closest('.ctx')) closeCtx();
   });
+
+  /* Only the bare desktop gets our menu — inside a window the browser's own
+     right-click stays, so copying a contract address still works. */
+  $('#desktop').addEventListener('contextmenu', e => {
+    if (e.target.closest('.win') || e.target.closest('.taskbar') || e.target.closest('.startmenu')) return;
+    e.preventDefault();
+    openCtx(e.clientX, e.clientY);
+  });
+  addEventListener('keydown', e => { if (e.key === 'Escape') closeCtx(); });
+  addEventListener('blur', closeCtx);
 }
 
 function buildStartMenu() {
