@@ -579,9 +579,12 @@ CONTRACT
 <template id="app-lore">
   <div class="help">
     <div class="help__bar">
-      <button class="xp-btn">Contents</button><button class="xp-btn">Index</button><button class="xp-btn">Back</button>
-      <button class="xp-btn">Print</button>
+      <button class="xp-btn" id="lrContents" type="button">Contents</button
+      ><button class="xp-btn" id="lrIndex" type="button">Index</button
+      ><button class="xp-btn" id="lrBack" type="button" disabled>Back</button>
+      <button class="xp-btn" id="lrPrint" type="button">Print</button>
     </div>
+    <nav class="help__toc" id="lrToc" hidden aria-label="Contents"></nav>
     <div class="help__body">
       <h2>The Record</h2>
       <p class="help__lede">Thirty-eight years of being right, in chronological order.</p>

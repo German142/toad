@@ -252,10 +252,10 @@ const APPS = {
   chat:       { title:'Toad Messenger',          icon:'ic-chat',       tpl:'app-chat',       w:520,  h:560, status:'The Pond', mount:mountChat },
   gallery:    { title:'Toad Gallery',          icon:'ic-gallery',    tpl:'app-gallery',    w:700,  h:520, status:'Drawings from the pond', mount:mountGallery },
   memes:      { title:`Evidence — ${MEMES.length} objects`, icon:'ic-memes', tpl:'app-memes', w:640, h:500, status:`${MEMES.length} objects`, mount:mountMemes },
-  viewer:     { title:'Toad Viewer',           icon:'ic-viewer',     tpl:'app-viewer',     w:720,  h:600, status:'', mount:mountViewer },
+  viewer:     { title:'Toad Viewer',           icon:'ic-viewer',     tpl:'app-viewer',     w:720,  h:600, status:'', mount:mountViewer, remount:true },
   tokenomics: { title:'Tokenomics.xls',        icon:'ic-tokenomics', tpl:'app-tokenomics', w:520,  h:470, status:'Read only' },
   buy:        { title:'HowToBuy.txt — Notepad',icon:'ic-buy',        tpl:'app-buy',        w:560,  h:520, status:'', mount:mountBuy },
-  lore:       { title:'Lore.hlp — Help',       icon:'ic-lore',       tpl:'app-lore',       w:600,  h:560, status:'The Record' },
+  lore:       { title:'Lore.hlp — Help',       icon:'ic-lore',       tpl:'app-lore',       w:600,  h:560, status:'The Record', mount:mountLore },
   chart:      { title:'Live chart — Dexscreener', icon:'ic-chart',   tpl:'app-chart',      w:1000, h:690, status:'Streaming from Dexscreener', mount:mountChart },
   contract:   { title:'Contract address',      icon:'ic-contract',   tpl:'app-contract',   w:460,  h:300, status:'', mount:mountContract, dialog:true },
   safety:     { title:'ReadMe.txt — Notepad',  icon:'ic-safety',     tpl:'app-safety',     w:540,  h:480, status:'' },
@@ -304,7 +304,11 @@ const WM = {
       const w = this.open.get(id);
       w.el.classList.remove('is-min');
       this.focus(id);
-      app.mount?.(w.el, opts);
+      /* Reopening used to run mount again, which quietly stacked a second set
+         of listeners -- and, where a mount also starts a loop, a second loop.
+         Only the viewer wants to be told again, because it is being handed a
+         different picture; everything else is already set up. */
+      if (app.remount) app.mount?.(w.el, opts);
       return w;
     }
 
@@ -1409,11 +1413,6 @@ const TOASTER = {
 const CHAT_EMOS = ['\uD83D\uDC38', '\uD83C\uDF7A', '\uD83D\uDCC8', '\uD83D\uDCC9', '\uD83D\uDD25', '\uD83D\uDC8E', '\uD83E\uDD1D', '\uD83D\uDE02', '\uD83D\uDE2D', '\uD83D\uDC40', '\uD83C\uDF19', '\u2764\uFE0F'];
 
 function mountChat(win) {
-  /* Reopening a window calls mount again, which would leave a second polling
-     loop and a second set of listeners behind. Set up once, then only focus. */
-  if (win.__chatReady) { $('#chBody', win).focus(); return; }
-  win.__chatReady = true;
-
   const log = $('#chLog', win), body = $('#chBody', win), nick = $('#chNick', win);
   const who = $('#chWho', win), state = $('#chState', win), emos = $('#chEmos', win);
   let lastId = 0, timer = null, dead = false, mine = null, faces = {};
@@ -1789,7 +1788,15 @@ function mountPaint(win) {
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
-  const push = () => { undo.push(ctx.getImageData(0, 0, cv.width, cv.height)); if (undo.length > 20) undo.shift(); };
+  /* Undo is greyed until there is something to take back, the way Delete stamp
+     is. A button that is simply unavailable is honest; one that looks ready
+     and does nothing reads as broken. */
+  const syncUndo = () => { const b = $('#ptUndo', win); if (b) b.disabled = !undo.length; };
+  const push = () => {
+    undo.push(ctx.getImageData(0, 0, cv.width, cv.height));
+    if (undo.length > 20) undo.shift();
+    syncUndo();
+  };
 
   /* The canvas is drawn at a fixed 560x360 but displayed at whatever the
      window allows, so every pointer position has to be scaled back. */
@@ -2100,7 +2107,9 @@ function mountPaint(win) {
   $('#ptUndo', win).addEventListener('click', () => {
     const last = undo.pop();
     if (last) ctx.putImageData(last, 0, 0);
+    syncUndo();
   });
+  syncUndo();
   $('#ptClear', win).addEventListener('click', () => {
     push(); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cv.width, cv.height);
     objects = []; sel = null; render();
@@ -2217,8 +2226,113 @@ function mountPaint(win) {
   });
 }
 
+/* Four buttons in the help viewer had no listeners at all -- they looked
+   like a help viewer's chrome and did nothing. They have real work now, and
+   it is the work those words actually mean. */
+function mountLore(win) {
+  const body  = $('.help__body', win);
+  const toc   = $('#lrToc', win);
+  const back  = $('#lrBack', win);
+  const marks = $$('h3', body);
+  const history = [];
+
+  marks.forEach((h, i) => { h.id = h.id || 'lore-' + i; });
+
+  /* The element that actually scrolls is not always the one holding the text,
+     so find it rather than assume it -- scrollIntoView on the wrong parent
+     moves nothing and looks like a dead button. */
+  const scroller = (() => {
+    let el = body;
+    while (el && el !== win && el.scrollHeight <= el.clientHeight + 2) el = el.parentElement;
+    return el && el !== win ? el : (win.querySelector('.win__body') || body);
+  })();
+
+  function jump(el) {
+    history.push(scroller.scrollTop);        // a real Back needs somewhere to go back to
+    back.disabled = false;
+    const top = el.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+    scroller.scrollTo({ top: Math.max(0, top - 8), behavior: 'smooth' });
+    Sound.blip(760, .04, .03);
+  }
+
+  function fill(entries) {
+    toc.innerHTML = '';
+    entries.forEach(h => {
+      const a = document.createElement('button');
+      a.type = 'button'; a.className = 'help__tocitem';
+      a.textContent = toc.dataset.mode === 'index'
+        ? titleOf(h) + '  \u00b7  ' + h.textContent.split('\u2014')[0].trim()
+        : h.textContent;                     // textContent, always
+      a.addEventListener('click', () => jump(h));
+      toc.appendChild(a);
+    });
+  }
+
+  /* Contents is the order it happened in. Index is by name -- and sorting the
+     headings as they stand gives the same list back, because every one of them
+     starts with its year. So the index sorts by what comes after the dash,
+     which is the part somebody would actually look up. */
+  const titleOf = h => h.textContent.split('\u2014').slice(1).join('\u2014').trim() || h.textContent;
+  const show = entries => {
+    const same = toc.dataset.mode === (entries === marks ? 'contents' : 'index');
+    if (!toc.hidden && same) { toc.hidden = true; return; }
+    toc.dataset.mode = entries === marks ? 'contents' : 'index';
+    fill(entries);                            // mode is set first: fill reads it
+    toc.hidden = false;
+    Sound.blip(680, .04, .03);
+  };
+
+  $('#lrContents', win).addEventListener('click', () => show(marks));
+  $('#lrIndex', win).addEventListener('click', () =>
+    show([...marks].sort((a, b) => titleOf(a).localeCompare(titleOf(b), undefined, { numeric: true }))));
+
+  back.addEventListener('click', () => {
+    const to = history.pop();
+    if (to === undefined) return;
+    scroller.scrollTo({ top: to, behavior: 'smooth' });
+    back.disabled = !history.length;
+    Sound.blip(560, .04, .03);
+  });
+
+  $('#lrPrint', win).addEventListener('click', () => {
+    Sound.blip(880, .05, .03);
+    print();                                  // the one thing Print can honestly mean
+  });
+}
+
 function mountExplorer(win) {
-  $$('.ie__tb[data-nav]', win).forEach(b => b.addEventListener('click', () => Sound.blip(600, .04, .03)));
+  /* Back, Forward and Go used to be furniture: Back and Forward made a noise
+     and Go had no listener at all. A control that looks like it navigates and
+     does not is worse than one that is plainly unavailable, so they say what
+     they are now.
+
+     This window has one page, so there is nothing behind it and nothing ahead
+     -- exactly the state a freshly opened browser window is in, and it showed
+     its Back button greyed out for the same reason. */
+  $$('.ie__tb[data-nav]', win).forEach(b => {
+    b.disabled = true;
+    b.title = b.dataset.nav === 'back' ? 'Nothing to go back to — this is the front page'
+                                       : 'Nothing to go forward to';
+  });
+
+  /* Go reloads the page, which is a real thing to do and visible while it
+     happens: the status line changes and the pane returns to the top. */
+  const go = $('.ie__go', win), status = win.querySelector('.win__status');
+  const pane = $('.ie__body', win) || win.querySelector('.win__body');
+  if (go) go.addEventListener('click', () => {
+    Sound.blip(600, .04, .03);
+    go.disabled = true;
+    const was = status ? status.textContent : '';
+    if (status) status.textContent = 'Opening http://www.thetoadmeme.os/index.html …';
+    win.classList.add('is-loading');
+    setTimeout(() => {
+      if (pane) pane.scrollTop = 0;
+      win.classList.remove('is-loading');
+      if (status) status.textContent = was || 'Done — the pond';
+      go.disabled = false;
+      Sound.blip(880, .05, .03);
+    }, 620);
+  });
 }
 
 /* Dexscreener in a window rather than a new tab. Their embed mode is built
