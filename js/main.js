@@ -853,6 +853,7 @@ function boot() {
   WM.launch('explorer');
   setTimeout(() => assistant(`Welcome, fren. Everything lives behind the start button — or double-click an icon. Canal 88 has ${CHANNELS.length} tapes.`), 1400);
   scheduleAssistant();
+  TOASTER.start();          // the room keeps talking whether or not you look
 }
 
 function buildIcons() {
@@ -1048,6 +1049,7 @@ const ASSIST_LINES = [
    without anybody having to announce it anywhere. Keep the oldest few and
    drop the rest, or the news stops being news. */
 const NEWS_LINES = [
+  'New: the messenger keeps listening after you close it \u2014 a message pops up in the corner, like 2003.',
   'New: Toad Messenger. One public room, like it is 2003. No links, no DMs, no seed phrases.',
   'New: the public gallery. Anything drawn in Toad Paint can go up on the wall.',
   'New: you can vote on other people\u2019s drawings. Open the Gallery and press the heart.',
@@ -1313,6 +1315,97 @@ async function gallerySubmit(name, dataUrl) {
   if (!r.ok) throw new Error(await r.text());
 }
 
+/* ── the little window in the corner ──────────────────────────
+   The messenger keeps listening after you close or minimise it, and says so
+   the way it did in 2003: a small panel that slides up from the bottom right,
+   shows who wrote and what, and takes you to the room when clicked.
+
+   It runs on its own, separate from any open window, so minimising costs you
+   nothing. It stays quiet while the messenger is open and focused -- being
+   told about a line you are already looking at is just noise. */
+const TOASTER = {
+  lastId: 0, started: false, timer: null, polling: false, faces: {}, mine: null,
+
+  start() {
+    if (this.started) return;
+    this.started = true;
+    /* Start from the present: a returning visitor should not be met by a
+       stack of everything said while they were away. */
+    chatFetch(0).then(rows => {
+      rows.forEach(r => { this.lastId = Math.max(this.lastId, r.id); });
+    }).catch(() => {}).finally(() => this.tick());
+    chatWhoAmI().then(w => { this.mine = w; });
+  },
+
+  visible() {
+    const rec = WM.open && WM.open.get && WM.open.get('chat');
+    return !!(rec && rec.el && !rec.el.classList.contains('is-min') && !rec.el.classList.contains('is-blur'));
+  },
+
+  async tick() {
+    if (this.polling) return;
+    this.polling = true;
+    clearTimeout(this.timer);
+    try {
+      const rows = await chatFetch(this.lastId);
+      const fresh = [];
+      rows.forEach(r => { this.lastId = Math.max(this.lastId, r.id); fresh.push(r); });
+      if (fresh.some(r => !r.is_bot && !this.faces[r.who])) this.faces = await chatFaces();
+      /* Never announce your own lines, and never while the room is in front. */
+      const worth = fresh.filter(r => r.who !== this.mine && !this.visible());
+      if (worth.length) this.pop(worth[worth.length - 1], worth.length);
+    } catch (e) {}
+    this.polling = false;
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => this.tick(), document.hidden ? 20000 : 6000);
+  },
+
+  pop(row, more) {
+    const old = $('#msnpop');
+    if (old) old.remove();
+
+    const box = document.createElement('aside');
+    box.className = 'msnpop'; box.id = 'msnpop';
+    box.setAttribute('role', 'status');
+
+    const face = row.is_bot ? '/assets/brand/logo.png' : this.faces[row.who];
+    const img = document.createElement('img');
+    img.className = 'msnpop__face'; img.alt = '';
+    img.src = face || '/assets/brand/logo.png';        // src, never innerHTML
+
+    const txt = document.createElement('div');
+    txt.className = 'msnpop__txt';
+    const who = document.createElement('b');
+    who.textContent = row.is_bot ? 'Toad' : row.nick;   // textContent: a stranger's text
+    const line = document.createElement('span');
+    line.textContent = row.image && !row.body ? 'sent a drawing' : row.body;
+    txt.append(who, line);
+    if (more > 1) {
+      const rest = document.createElement('i');
+      rest.textContent = `and ${more - 1} more`;
+      txt.appendChild(rest);
+    }
+
+    const shut = document.createElement('button');
+    shut.className = 'msnpop__x'; shut.type = 'button';
+    shut.setAttribute('aria-label', 'Dismiss');
+    shut.textContent = '\u2715';
+    shut.addEventListener('click', e => { e.stopPropagation(); box.remove(); });
+
+    box.append(img, txt, shut);
+    box.addEventListener('click', () => { box.remove(); WM.launch('chat'); });
+    document.body.appendChild(box);
+
+    requestAnimationFrame(() => box.classList.add('is-up'));
+    Sound.blip(880, .05, .04);
+    setTimeout(() => Sound.blip(1180, .05, .035), 110);   // the two-note one
+    setTimeout(() => {
+      box.classList.remove('is-up');
+      setTimeout(() => box.remove(), 260);
+    }, 7000);
+  },
+};
+
 const CHAT_EMOS = ['\uD83D\uDC38', '\uD83C\uDF7A', '\uD83D\uDCC8', '\uD83D\uDCC9', '\uD83D\uDD25', '\uD83D\uDC8E', '\uD83E\uDD1D', '\uD83D\uDE02', '\uD83D\uDE2D', '\uD83D\uDC40', '\uD83C\uDF19', '\u2764\uFE0F'];
 
 function mountChat(win) {
@@ -1445,6 +1538,8 @@ function mountChat(win) {
       }
       if (first) { mine = await chatWhoAmI(); faces = await chatFaces(); }
       const rows = await chatFetch(lastId);
+      /* Whatever this window has shown, the corner need not announce. */
+      rows.forEach(r => { TOASTER.lastId = Math.max(TOASTER.lastId, r.id); });
       /* A face that arrives after its owner has spoken should still show up,
          so refresh the set whenever somebody unfamiliar turns up. */
       if (rows.some(r => !r.is_bot && !faces[r.who])) faces = await chatFaces();
