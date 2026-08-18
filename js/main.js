@@ -968,6 +968,23 @@ const PAINT_TOOLS = [
 ];
 const PAINT_SIZES = [1, 3, 6, 12];
 const CUSTOM_WALL_KEY = 'toados.wall.custom';
+/* ── stamps ────────────────────────────────────────────────────
+   Most people cannot draw, but everybody can arrange. The toad head
+   is the existing cut-out logo; the rest are drawn here, so they cost
+   nothing to load and scale to any size. */
+const STAMP_SVG = d =>
+  'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' + d + '</svg>');
+const STAMPS = [
+  { id:'toad',    label:'Toad',        src:'/assets/brand/logo.png' },
+  { id:'shades',  label:'Shades',      src:STAMP_SVG('<g fill="#111"><rect x="6" y="38" width="38" height="26" rx="6"/><rect x="56" y="38" width="38" height="26" rx="6"/><rect x="44" y="46" width="12" height="7"/><rect x="0" y="40" width="8" height="6"/><rect x="92" y="40" width="8" height="6"/></g>') },
+  { id:'cap',     label:'Cap',         src:STAMP_SVG('<path d="M12 62c0-24 16-38 38-38s38 14 38 38z" fill="#e0342a"/><path d="M8 62h84c4 0 6 3 6 6s-2 6-6 6H8c-4 0-6-3-6-6s2-6 6-6z" fill="#b8241b"/><circle cx="50" cy="26" r="5" fill="#f5c518"/>') },
+  { id:'candle',  label:'Green candle',src:STAMP_SVG('<rect x="44" y="4" width="6" height="26" fill="#1a7f37"/><rect x="30" y="30" width="34" height="46" rx="2" fill="#22c55e" stroke="#14561f" stroke-width="3"/><rect x="44" y="76" width="6" height="20" fill="#1a7f37"/>') },
+  { id:'wine',    label:'Wine',        src:STAMP_SVG('<path d="M28 10h44l-6 30a16 16 0 0 1-32 0z" fill="#f2e8a0" stroke="#8d7f43" stroke-width="3"/><rect x="47" y="56" width="6" height="26" fill="#8d7f43"/><rect x="32" y="82" width="36" height="6" rx="3" fill="#8d7f43"/>') },
+  { id:'money',   label:'Money',       src:STAMP_SVG('<rect x="8" y="26" width="84" height="48" rx="4" fill="#74c13b" stroke="#2c5a14" stroke-width="3"/><circle cx="50" cy="50" r="14" fill="none" stroke="#2c5a14" stroke-width="3"/><path d="M50 38v24M44 44h12M44 56h12" stroke="#2c5a14" stroke-width="3"/>') },
+  { id:'heart',   label:'Heart',       src:STAMP_SVG('<path d="M50 84C22 64 8 50 8 34a20 20 0 0 1 42-8 20 20 0 0 1 42 8c0 16-14 30-42 50z" fill="#e0342a"/>') },
+  { id:'star',    label:'Star',        src:STAMP_SVG('<path d="M50 6l12 30 32 2-25 21 8 31-27-18-27 18 8-31L6 38l32-2z" fill="#f5c518" stroke="#8a6d00" stroke-width="3"/>') },
+];
+const STAMP_PX = { 1: 56, 3: 84, 6: 120, 12: 170 };
 
 /* ══════════════════════════════════════════════════════════════
    PUBLIC GALLERY
@@ -1040,6 +1057,8 @@ function mountPaint(win) {
 
   let tool = 'pencil', colour = '#000000', size = 3;
   let drawing = false, sx = 0, sy = 0, snapshot = null;
+  let mirror = false, stamp = null;
+  const stampImg = {};
   const undo = [];
 
   ctx.fillStyle = '#ffffff';
@@ -1068,6 +1087,55 @@ function mountPaint(win) {
       Sound.blip(720, .03, .025);
     });
     tools.appendChild(b);
+  });
+
+  /* Stamps are a tool like any other, so picking one deselects the pencil
+     and the size buttons keep meaning what they meant — how big. */
+  const stampBar = $('#ptStamps', win);
+  stampBar.innerHTML = '';
+  STAMPS.forEach(st => {
+    const img = new Image();
+    img.src = st.src;
+    stampImg[st.id] = img;
+
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'pt pt--stamp'; b.title = st.label;
+    b.innerHTML = `<img src="${st.src}" alt="${st.label}">`;
+    b.addEventListener('click', () => {
+      tool = 'stamp'; stamp = st.id;
+      $$('.pt', tools).forEach(x => x.classList.remove('is-on'));
+      $$('.pt--stamp', stampBar).forEach(x => x.classList.remove('is-on'));
+      b.classList.add('is-on');
+      Sound.blip(820, .04, .03);
+    });
+    stampBar.appendChild(b);
+  });
+  /* Choosing a real tool again has to release the stamp, or clicks would
+     keep dropping toad heads while the pencil looks selected. */
+  tools.addEventListener('click', () => {
+    stamp = null;
+    $$('.pt--stamp', stampBar).forEach(x => x.classList.remove('is-on'));
+  });
+
+  $('#ptMirror', win).addEventListener('change', e => {
+    mirror = e.target.checked;
+    Sound.blip(mirror ? 900 : 600, .04, .03);
+  });
+
+  /* An empty white rectangle is the hardest thing to start on. This drops a
+     meme underneath and leaves every tool exactly as it was — drawing stays
+     free, this is only a different sheet of paper. */
+  $('#ptMeme', win).addEventListener('click', () => {
+    const m = MEMES[Math.floor(Math.random() * MEMES.length)];
+    const img = new Image();
+    img.onload = () => {
+      push();
+      const scale = Math.max(cv.width / img.width, cv.height / img.height);
+      const w = img.width * scale, h = img.height * scale;
+      ctx.drawImage(img, (cv.width - w) / 2, (cv.height - h) / 2, w, h);
+      Sound.blip(680, .05, .03);
+    };
+    img.src = `/assets/memes/${m.f}.jpg`;
   });
 
   sizes.innerHTML = '';
@@ -1113,17 +1181,40 @@ function mountPaint(win) {
     ctx.putImageData(img, 0, 0);
   }
 
+  /* With mirror on, the same segment is drawn again at its reflection about
+     the vertical centre — the cheapest way to make a scribble look deliberate. */
+  const flip = p => ({ x: cv.width - p.x, y: p.y });
+  function segment(a, b) {
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  }
   function stroke(a, b) {
     ctx.strokeStyle = tool === 'eraser' ? '#ffffff' : colour;
     ctx.lineWidth = tool === 'brush' ? size * 2 : tool === 'eraser' ? size * 3 : size;
-    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    segment(a, b);
+    if (mirror) segment(flip(a), flip(b));
+  }
+
+  function placeStamp(p) {
+    const img = stampImg[stamp];
+    if (!img || !img.complete || !img.naturalWidth) return;
+    const w = STAMP_PX[size] || 84;
+    const h = w * (img.naturalHeight / img.naturalWidth);
+    ctx.drawImage(img, p.x - w / 2, p.y - h / 2, w, h);
+    if (mirror) {
+      const f = flip(p);
+      ctx.save();
+      ctx.translate(f.x, f.y); ctx.scale(-1, 1);
+      ctx.drawImage(img, -w / 2, -h / 2, w, h);
+      ctx.restore();
+    }
   }
 
   cv.addEventListener('pointerdown', e => {
     e.preventDefault();
     const p = pos(e);
     push();
-    if (tool === 'fill') { fill(p.x, p.y, colour); return; }
+    if (tool === 'fill')  { fill(p.x, p.y, colour); return; }
+    if (tool === 'stamp') { placeStamp(p); Sound.blip(940, .04, .03); return; }
     drawing = true; sx = p.x; sy = p.y;
     snapshot = ctx.getImageData(0, 0, cv.width, cv.height);
     try { cv.setPointerCapture(e.pointerId); } catch (err) {}
@@ -1140,18 +1231,24 @@ function mountPaint(win) {
       ctx.fillStyle = colour;
       for (let i = 0; i < 14; i++) {
         const a = Math.random() * Math.PI * 2, r = Math.random() * size * 2.5;
-        ctx.fillRect(p.x + Math.cos(a) * r, p.y + Math.sin(a) * r, 1, 1);
+        const dx = Math.cos(a) * r, dy = Math.sin(a) * r;
+        ctx.fillRect(p.x + dx, p.y + dy, 1, 1);
+        if (mirror) ctx.fillRect(cv.width - (p.x + dx), p.y + dy, 1, 1);
       }
       return;
     }
     /* shapes redraw from the snapshot, so dragging previews instead of smearing */
     ctx.putImageData(snapshot, 0, 0);
     ctx.strokeStyle = colour; ctx.lineWidth = size;
-    ctx.beginPath();
-    if (tool === 'line') { ctx.moveTo(sx, sy); ctx.lineTo(p.x, p.y); }
-    if (tool === 'rect') ctx.rect(sx, sy, p.x - sx, p.y - sy);
-    if (tool === 'ellipse') ctx.ellipse((sx + p.x) / 2, (sy + p.y) / 2, Math.abs(p.x - sx) / 2, Math.abs(p.y - sy) / 2, 0, 0, Math.PI * 2);
-    ctx.stroke();
+    const shape = (ax, ay, bx, by) => {
+      ctx.beginPath();
+      if (tool === 'line') { ctx.moveTo(ax, ay); ctx.lineTo(bx, by); }
+      if (tool === 'rect') ctx.rect(ax, ay, bx - ax, by - ay);
+      if (tool === 'ellipse') ctx.ellipse((ax + bx) / 2, (ay + by) / 2, Math.abs(bx - ax) / 2, Math.abs(by - ay) / 2, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    };
+    shape(sx, sy, p.x, p.y);
+    if (mirror) shape(cv.width - sx, sy, cv.width - p.x, p.y);
   });
 
   const stop = () => { drawing = false; snapshot = null; };
@@ -1177,13 +1274,28 @@ function mountPaint(win) {
     }
   });
 
+  /* A pencil sketch is tiny as PNG and mushy as JPEG; a picture drawn over a
+     meme photo is the other way round -- half a megabyte as PNG, which the
+     gallery refuses. So try the lossless one first and only fall back when it
+     will not fit, stepping the quality down rather than rejecting the drawing. */
+  const GAL_MAX = 255000;
+  function exportForGallery() {
+    const png = cv.toDataURL('image/png');
+    if (png.length <= GAL_MAX) return png;
+    for (const q of [0.85, 0.7, 0.55, 0.4]) {
+      const jpg = cv.toDataURL('image/jpeg', q);
+      if (jpg.length <= GAL_MAX) return jpg;
+    }
+    return cv.toDataURL('image/jpeg', 0.3);
+  }
+
   $('#ptSubmit', win).addEventListener('click', async () => {
     const name = (prompt('Sign it — what name should appear under your picture?') || '').trim();
     if (!name) return;
     const btn = $('#ptSubmit', win);
     btn.disabled = true;
     try {
-      await gallerySubmit(name, cv.toDataURL('image/png'));
+      await gallerySubmit(name, exportForGallery());
       toast('Sent. It appears in the gallery once it has been looked at.');
     } catch (e) {
       toast('That did not go through. Maybe the drawing is too large — try clearing some of it.');
