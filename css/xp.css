@@ -947,3 +947,9 @@ input, textarea{ cursor:text; }
   .paint__palette{ grid-template-columns:repeat(7,18px); }
   .paint__acts{ margin-left:0; width:100%; }
 }
+
+/* gallery — same furniture as the evidence folder, one note underneath */
+.gal__hint{
+  margin:0; padding:7px 10px; font-size:11px; color:#4a5a4c;
+  border-top:1px solid #b8bcc0; background:#f6f7f9;
+}

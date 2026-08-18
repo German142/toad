@@ -249,6 +249,7 @@ const APPS = {
   /* title and status count the array rather than hardcoding it, so adding a
      meme is still a one-line change */
   paint:      { title:'Toad Paint',            icon:'ic-paint',      tpl:'app-paint',      w:640,  h:560, status:'Untitled - Toad Paint', mount:mountPaint },
+  gallery:    { title:'Toad Gallery',          icon:'ic-gallery',    tpl:'app-gallery',    w:700,  h:520, status:'Drawings from the pond', mount:mountGallery },
   memes:      { title:`Evidence — ${MEMES.length} objects`, icon:'ic-memes', tpl:'app-memes', w:640, h:500, status:`${MEMES.length} objects`, mount:mountMemes },
   viewer:     { title:'Toad Viewer',           icon:'ic-viewer',     tpl:'app-viewer',     w:720,  h:600, status:'', mount:mountViewer },
   tokenomics: { title:'Tokenomics.xls',        icon:'ic-tokenomics', tpl:'app-tokenomics', w:520,  h:470, status:'Read only' },
@@ -272,6 +273,7 @@ const DESKTOP_ICONS = [
   { link:'tiktok',    label:'TikTok',        icon:'ic-tiktok' },
   { app:'toadrun',    label:'Toad Run' },
   { app:'paint',      label:'Toad Paint' },
+  { app:'gallery',    label:'Gallery' },
   { app:'chart',      label:'Live Chart' },
   { app:'memes',      label:'Evidence' },
   { app:'tokenomics', label:'Tokenomics.xls' },
@@ -797,6 +799,7 @@ function buildStartMenu() {
     item('ic-canal88',  'Canal 88 Player', `${CHANNELS.length} tapes`, () => WM.launch('canal88')),
     item('/toadrun/assets/icon-192.png', 'Toad Run', 'Full screen. He runs.', () => WM.launch('toadrun')),
     item('ic-paint',    'Toad Paint', 'Draw something', () => WM.launch('paint')),
+    item('ic-gallery',  'Toad Gallery', 'What others drew', () => WM.launch('gallery')),
     item('ic-memes',    'Evidence', `${MEMES.length} memes`, () => WM.launch('memes')),
     sep(),
     item('ic-tokenomics', 'Tokenomics.xls', '', () => WM.launch('tokenomics')),
@@ -966,6 +969,69 @@ const PAINT_TOOLS = [
 const PAINT_SIZES = [1, 3, 6, 12];
 const CUSTOM_WALL_KEY = 'toados.wall.custom';
 
+/* ══════════════════════════════════════════════════════════════
+   PUBLIC GALLERY
+   Anyone may submit a drawing; nobody may publish one. Rows land
+   with approved=false and the database refuses anything else — the
+   key below is a publishable one and is meant to be here, but it
+   only works because the row-level rules do.
+   ══════════════════════════════════════════════════════════════ */
+const GAL_URL = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/toad_gallery';
+const GAL_KEY = 'sb_publishable_JqeJrbDTeEJGPc-kYU81jQ_tcXL5m9o';
+const GAL_HEAD = { apikey: GAL_KEY, Authorization: 'Bearer ' + GAL_KEY, 'Content-Type': 'application/json' };
+
+async function galleryFetch() {
+  const r = await fetch(GAL_URL + '?select=id,name,image,created_at&order=created_at.desc&limit=60', { headers: GAL_HEAD });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+async function gallerySubmit(name, dataUrl) {
+  const r = await fetch(GAL_URL, {
+    method: 'POST',
+    headers: { ...GAL_HEAD, Prefer: 'return=minimal' },
+    body: JSON.stringify({ name: name.slice(0, 24), image: dataUrl }),
+  });
+  if (!r.ok) throw new Error(await r.text());
+}
+
+function mountGallery(win) {
+  const grid = $('#galGrid', win), count = $('#galCount', win);
+
+  async function render() {
+    grid.innerHTML = '';
+    count.textContent = 'loading…';
+    try {
+      const rows = await galleryFetch();
+      count.textContent = rows.length === 1 ? '1 picture' : rows.length + ' pictures';
+      if (!rows.length) {
+        count.textContent = 'nothing here yet';
+        return;
+      }
+      rows.forEach(row => {
+        const b = document.createElement('button');
+        b.className = 'file';
+        const img = document.createElement('img');
+        img.className = 'file__thumb'; img.loading = 'lazy'; img.alt = '';
+        img.src = row.image;                         // src, never innerHTML
+        const cap = document.createElement('span');
+        cap.textContent = row.name;                  // textContent: the name is a stranger's text
+        b.append(img, cap);
+        b.addEventListener('click', () => {
+          $$('.file', grid).forEach(f => f.classList.remove('is-sel'));
+          b.classList.add('is-sel');
+        });
+        grid.appendChild(b);
+      });
+    } catch (e) {
+      count.textContent = 'could not load the gallery';
+    }
+  }
+
+  $('#galReload', win).addEventListener('click', () => { Sound.blip(700, .04, .03); render(); });
+  render();
+}
+
 function mountPaint(win) {
   const cv   = $('#ptCanvas', win);
   const ctx  = cv.getContext('2d', { willReadFrequently: true });
@@ -1109,6 +1175,20 @@ function mountPaint(win) {
     } catch (err) {
       toast('The drawing was too large to keep. Try clearing some of it.');
     }
+  });
+
+  $('#ptSubmit', win).addEventListener('click', async () => {
+    const name = (prompt('Sign it — what name should appear under your picture?') || '').trim();
+    if (!name) return;
+    const btn = $('#ptSubmit', win);
+    btn.disabled = true;
+    try {
+      await gallerySubmit(name, cv.toDataURL('image/png'));
+      toast('Sent. It appears in the gallery once it has been looked at.');
+    } catch (e) {
+      toast('That did not go through. Maybe the drawing is too large — try clearing some of it.');
+    }
+    btn.disabled = false;
   });
 
   $('#ptShare', win).addEventListener('click', () => {
