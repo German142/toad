@@ -507,13 +507,34 @@ function mountGameChat(host) {
   const box = document.createElement('div');
   box.className = 'gchat';
   box.innerHTML =
-    `<div class="gchat__log" id="gcLog"></div>
+    `<div class="gchat__head">
+       <span class="gchat__dot"></span>
+       <span class="gchat__room">The Pond</span>
+       <span class="gchat__count" id="gcCount"></span>
+       <button class="gchat__fold" id="gcFold" type="button" title="Hide the chat" aria-label="Hide the chat">–</button>
+     </div>
+     <div class="gchat__log" id="gcLog"></div>
      <form class="gchat__row" id="gcForm">
-       <input class="gchat__in" id="gcIn" maxlength="200" placeholder="press Enter to chat" autocomplete="off" spellcheck="false" />
+       <input class="gchat__in" id="gcIn" maxlength="200" placeholder="Press Enter to chat…" autocomplete="off" spellcheck="false" />
+       <span class="gchat__hint">Enter</span>
      </form>`;
   host.appendChild(box);
 
   const log = box.querySelector('#gcLog'), input = box.querySelector('#gcIn');
+  const count = box.querySelector('#gcCount');
+
+  /* Somebody deep in a run should be able to put it away without leaving the
+     game, and find it again in the same corner. */
+  const FOLD_KEY = 'toados.gchat.folded';
+  const fold = box.querySelector('#gcFold');
+  try { if (localStorage.getItem(FOLD_KEY) === '1') box.classList.add('is-folded'); } catch (e) {}
+  fold.addEventListener('click', () => {
+    const folded = box.classList.toggle('is-folded');
+    fold.textContent = folded ? '+' : '–';
+    fold.title = folded ? 'Show the chat' : 'Hide the chat';
+    try { localStorage.setItem(FOLD_KEY, folded ? '1' : '0'); } catch (e) {}
+  });
+  if (box.classList.contains('is-folded')) { fold.textContent = '+'; fold.title = 'Show the chat'; }
   let lastId = 0, dead = false, faces = {}, mine = null, timer = null;
   let polling = false;
   const seen = new Set();
@@ -560,7 +581,7 @@ function mountGameChat(host) {
     t.textContent = row.image && !row.body ? 'sent a drawing' : row.body;
     l.append(n, t);
     log.appendChild(l);
-    while (log.children.length > 7) log.firstChild.remove();       // a strip, not a window
+    while (log.children.length > 14) log.firstChild.remove();      // a panel, not a transcript
     log.scrollTop = log.scrollHeight;
   }
 
@@ -581,7 +602,9 @@ function mountGameChat(host) {
       });
       const n = nickOf();
       if (n) chatHere(n);
-    } catch (e) { /* a quiet strip is better than an error over a game */ }
+      const here = await chatOnline();
+      count.textContent = here.length ? here.length + ' online' : '';
+    } catch (e) { /* a quiet panel is better than an error over a game */ }
     polling = false;
     clearTimeout(timer);
     timer = setTimeout(() => tick(false), document.hidden ? 15000 : 4000);
@@ -1512,7 +1535,10 @@ function mountGallery(win) {
   const title = $('#galTitle', win), meta  = $('#galMeta', win);
   const voteBtn = $('#galVote', win), sortBtn = $('#galSort', win);
   let order = 'new', rows = [], open = null, mine = null;
-  chatWhoAmI().then(w => { mine = w; });        // same hash the room uses
+  /* Your own hash arrives a moment after the window does. Anything already on
+     screen has to be told, or opening a picture too quickly offers Report on
+     a drawing that is yours. */
+  chatWhoAmI().then(w => { mine = w; if (open) markOwnership(open); });
 
   const label = (n, mine) => `${mine ? '\u2665' : '\u2661'} ${n}`;
   const when = iso => {
@@ -1556,17 +1582,22 @@ function mountGallery(win) {
     }
   }
 
+  /* Your own picture offers a way out; everyone else's offers a way to
+     complain. Never both, and never guessed before the answer is in. */
+  function markOwnership(row) {
+    const known = mine !== null;
+    const isMine = !!(known && row.owner_who && row.owner_who === mine);
+    $('#galMine', win).hidden = !isMine;
+    $('#galFlag', win).hidden = !known || isMine;
+  }
+
   function show(row) {
     open = row;
     big.src = row.image;
     title.textContent = row.name;                 // textContent: a stranger's text
     meta.textContent = 'Drawn in Toad Paint \u00b7 ' + when(row.created_at);
     paintVote(voteBtn, row);
-    /* Your own picture offers a way out; everyone else's offers a way to
-       complain. Never both. */
-    const isMine = !!(mine && row.owner_who && row.owner_who === mine);
-    $('#galMine', win).hidden = !isMine;
-    $('#galFlag', win).hidden = isMine;
+    markOwnership(row);
     view.hidden = false;
     Sound.blip(760, .04, .03);
   }
