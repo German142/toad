@@ -703,12 +703,14 @@ CREDITS
       <div class="paint__extras">
         <label class="paint__mirror"><input type="checkbox" id="ptMirror" /> Mirror</label>
         <button class="xp-btn xp-btn--sm" id="ptMeme" type="button">Start from a meme</button>
+        <button class="xp-btn xp-btn--sm" id="ptDel" type="button" disabled>Delete</button>
       </div>
     </div>
     <div class="paint__stamps" id="ptStamps"></div>
     <div class="paint__stage">
       <canvas class="paint__canvas" id="ptCanvas" width="560" height="360"
               aria-label="Drawing canvas"></canvas>
+      <canvas class="paint__layer" id="ptObjects" width="560" height="360" aria-hidden="true"></canvas>
     </div>
     <div class="paint__foot">
       <div class="paint__swatch"><i id="ptCurrent"></i></div>
@@ -730,9 +732,19 @@ CREDITS
   <div class="folder">
     <div class="folder__bar">
       <button class="ie__tb" id="galReload">↻ Refresh</button>
+      <button class="ie__tb" id="galSort">Sort: newest</button>
       <span class="folder__count" id="galCount"></span>
     </div>
     <div class="folder__grid" id="galGrid"></div>
+    <div class="gal__view" id="galView" hidden>
+      <div class="gal__viewbar">
+        <button class="ie__tb" id="galBack">← Back to the wall</button>
+        <span class="gal__title" id="galTitle"></span>
+        <button class="xp-btn gal__vote" id="galVote" type="button">♥ <b>0</b></button>
+      </div>
+      <div class="gal__stage"><img id="galBig" alt="" /></div>
+      <p class="gal__meta" id="galMeta"></p>
+    </div>
     <p class="gal__hint">Drawn in Toad Paint by people who felt like it. Want yours in here?
       Open Toad Paint and press <b>Add to public gallery</b>.</p>
   </div>
