@@ -248,6 +248,7 @@ const APPS = {
   toadrun:    { title:'Toad Run',              icon:'/toadrun/assets/icon-192.png', fullscreen:true },
   /* title and status count the array rather than hardcoding it, so adding a
      meme is still a one-line change */
+  paint:      { title:'Toad Paint',            icon:'ic-paint',      tpl:'app-paint',      w:640,  h:560, status:'Untitled - Toad Paint', mount:mountPaint },
   memes:      { title:`Evidence — ${MEMES.length} objects`, icon:'ic-memes', tpl:'app-memes', w:640, h:500, status:`${MEMES.length} objects`, mount:mountMemes },
   viewer:     { title:'Toad Viewer',           icon:'ic-viewer',     tpl:'app-viewer',     w:720,  h:600, status:'', mount:mountViewer },
   tokenomics: { title:'Tokenomics.xls',        icon:'ic-tokenomics', tpl:'app-tokenomics', w:520,  h:470, status:'Read only' },
@@ -270,6 +271,7 @@ const DESKTOP_ICONS = [
   { app:'canal88',    label:'Canal 88' },
   { link:'tiktok',    label:'TikTok',        icon:'ic-tiktok' },
   { app:'toadrun',    label:'Toad Run' },
+  { app:'paint',      label:'Toad Paint' },
   { app:'chart',      label:'Live Chart' },
   { app:'memes',      label:'Evidence' },
   { app:'tokenomics', label:'Tokenomics.xls' },
@@ -615,7 +617,22 @@ const WALLPAPERS = [
 ];
 const WALL_KEY = 'toados.wallpaper';
 
+function customWallpaper() {
+  try { return localStorage.getItem(CUSTOM_WALL_KEY); } catch (e) { return null; }
+}
 function applyWallpaper(id, remember = true) {
+  /* A drawing from Toad Paint is not in the list — it lives in storage as a
+     data url and only appears once somebody has made one. */
+  if (id === 'custom') {
+    const data = customWallpaper();
+    if (data) {
+      const el = $('.wall');
+      if (el) { el.src = data; el.classList.remove('wall--centre'); }
+      if (remember) { try { localStorage.setItem(WALL_KEY, 'custom'); } catch (e) {} }
+      return 'custom';
+    }
+    id = 'bliss';
+  }
   const w = WALLPAPERS.find(x => x.id === id) || WALLPAPERS[0];
   const el = $('.wall');
   if (el) {
@@ -655,6 +672,14 @@ function openCtx(x, y) {
     row('', null, 'sep'),
     row('<small class="ctx__head">Change wallpaper</small>', null, 'head'),
   );
+  const drawn = customWallpaper();
+  if (drawn) {
+    menu.appendChild(row(
+      `<img class="ctx__thumb" src="${drawn}" alt="" /><span>My drawing</span>` +
+      (current === 'custom' ? '<b class="ctx__tick">✓</b>' : ''),
+      () => { applyWallpaper('custom'); Sound.blip(880, .05, .03); },
+    ));
+  }
   WALLPAPERS.forEach(w => {
     menu.appendChild(row(
       `<img class="ctx__thumb" src="${w.thumb}" alt="" /><span>${w.name}</span>` +
@@ -771,6 +796,7 @@ function buildStartMenu() {
     item('ic-explorer', 'Toad Explorer', 'The whole story', () => WM.launch('explorer')),
     item('ic-canal88',  'Canal 88 Player', `${CHANNELS.length} tapes`, () => WM.launch('canal88')),
     item('/toadrun/assets/icon-192.png', 'Toad Run', 'Full screen. He runs.', () => WM.launch('toadrun')),
+    item('ic-paint',    'Toad Paint', 'Draw something', () => WM.launch('paint')),
     item('ic-memes',    'Evidence', `${MEMES.length} memes`, () => WM.launch('memes')),
     sep(),
     item('ic-tokenomics', 'Tokenomics.xls', '', () => WM.launch('tokenomics')),
@@ -913,6 +939,191 @@ function toast(msg) {
 /* ══════════════════════════════════════════════════════════════
    7 · APP MOUNTS
    ══════════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════
+   TOAD PAINT
+   The one program everybody opened first. Pencil, shapes, a fill
+   bucket and the twenty-eight colours, on a canvas — no library.
+   ══════════════════════════════════════════════════════════════ */
+const PAINT_COLOURS = [
+  '#000000','#808080','#800000','#808000','#008000','#008080','#000080','#800080',
+  '#808040','#004040','#0080ff','#004080','#8000ff','#804000','#ffffff','#c0c0c0',
+  '#ff0000','#ffff00','#00ff00','#00ffff','#0000ff','#ff00ff','#ffff80','#00ff80',
+  '#80ffff','#8080ff','#ff0080','#ff8040',
+];
+/* Drawn rather than typed: an emoji brush renders as an empty box wherever
+   the font lacks it, which is most places. */
+const svg = d => '<svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">' + d + '</svg>';
+const PAINT_TOOLS = [
+  { id:'pencil',  label:'Pencil',    glyph: svg('<path d="M2 14l1-3 8-8 2 2-8 8z" fill="#f5c518" stroke="#5a4a10"/><path d="M11 3l1.4-1.4 2 2L13 5z" fill="#8d99a8" stroke="#3b4450"/>') },
+  { id:'brush',   label:'Brush',     glyph: svg('<path d="M3 13c0-2 1-3 2-3s2 1 2 2-1 2-4 2z" fill="#e0342a" stroke="#6d1a15"/><path d="M6 10l6-7 3 2-6 7z" fill="#c9a06a" stroke="#7a5a2e"/>') },
+  { id:'eraser',  label:'Eraser',    glyph: svg('<rect x="2" y="8" width="9" height="5" rx="1" fill="#fff" stroke="#5a6470"/><path d="M5 8l4-5 5 3-3 5z" fill="#f2a0a0" stroke="#7a3b3b"/>') },
+  { id:'fill',    label:'Fill',      glyph: svg('<path d="M3 8l5-5 5 5-5 5z" fill="#2f7ddb" stroke="#123a70"/><path d="M13 10c1 1.5 1.5 2.2 1.5 3a1.5 1.5 0 0 1-3 0c0-.8.5-1.5 1.5-3z" fill="#74c13b" stroke="#2c5a14"/>') },
+  { id:'line',    label:'Line',      glyph: svg('<path d="M3 13L13 3" stroke="#000" stroke-width="1.6"/>') },
+  { id:'rect',    label:'Rectangle', glyph: svg('<rect x="2.5" y="4.5" width="11" height="7" fill="none" stroke="#000" stroke-width="1.4"/>') },
+  { id:'ellipse', label:'Ellipse',   glyph: svg('<ellipse cx="8" cy="8" rx="5.5" ry="4.5" fill="none" stroke="#000" stroke-width="1.4"/>') },
+  { id:'spray',   label:'Spray',     glyph: svg('<g fill="#000"><circle cx="6" cy="5" r=".9"/><circle cx="9" cy="7" r=".9"/><circle cx="5" cy="9" r=".9"/><circle cx="10" cy="11" r=".9"/><circle cx="7" cy="12" r=".9"/><circle cx="12" cy="8" r=".9"/></g>') },
+];
+const PAINT_SIZES = [1, 3, 6, 12];
+const CUSTOM_WALL_KEY = 'toados.wall.custom';
+
+function mountPaint(win) {
+  const cv   = $('#ptCanvas', win);
+  const ctx  = cv.getContext('2d', { willReadFrequently: true });
+  const tools = $('#ptTools', win), sizes = $('#ptSizes', win);
+  const pal  = $('#ptPalette', win), cur = $('#ptCurrent', win);
+
+  let tool = 'pencil', colour = '#000000', size = 3;
+  let drawing = false, sx = 0, sy = 0, snapshot = null;
+  const undo = [];
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  const push = () => { undo.push(ctx.getImageData(0, 0, cv.width, cv.height)); if (undo.length > 20) undo.shift(); };
+
+  /* The canvas is drawn at a fixed 560x360 but displayed at whatever the
+     window allows, so every pointer position has to be scaled back. */
+  const pos = e => {
+    const r = cv.getBoundingClientRect();
+    return { x: (e.clientX - r.left) * (cv.width / r.width), y: (e.clientY - r.top) * (cv.height / r.height) };
+  };
+
+  tools.innerHTML = '';
+  PAINT_TOOLS.forEach(t => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'pt' + (t.id === tool ? ' is-on' : '');
+    b.title = t.label; b.innerHTML = t.glyph;
+    b.addEventListener('click', () => {
+      tool = t.id;
+      $$('.pt', tools).forEach(x => x.classList.remove('is-on'));
+      b.classList.add('is-on');
+      Sound.blip(720, .03, .025);
+    });
+    tools.appendChild(b);
+  });
+
+  sizes.innerHTML = '';
+  PAINT_SIZES.forEach(n => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'pt pt--size' + (n === size ? ' is-on' : '');
+    b.title = n + ' px';
+    b.innerHTML = `<i style="width:${Math.min(n, 12)}px;height:${Math.min(n, 12)}px"></i>`;
+    b.addEventListener('click', () => {
+      size = n;
+      $$('.pt--size', sizes).forEach(x => x.classList.remove('is-on'));
+      b.classList.add('is-on');
+    });
+    sizes.appendChild(b);
+  });
+
+  cur.style.background = colour;
+  pal.innerHTML = '';
+  PAINT_COLOURS.forEach(c => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'pc'; b.style.background = c; b.title = c;
+    b.addEventListener('click', () => { colour = c; cur.style.background = c; });
+    pal.appendChild(b);
+  });
+
+  /* ── flood fill, four-way, on a copy of the pixels ── */
+  function fill(x, y, hex) {
+    const img = ctx.getImageData(0, 0, cv.width, cv.height), d = img.data;
+    const at = (px, py) => (py * cv.width + px) * 4;
+    const start = at(x | 0, y | 0);
+    const t = [d[start], d[start + 1], d[start + 2], d[start + 3]];
+    const m = hex.match(/\w\w/g).map(h => parseInt(h, 16));
+    if (t[0] === m[0] && t[1] === m[1] && t[2] === m[2] && t[3] === 255) return;
+    const stack = [[x | 0, y | 0]];
+    while (stack.length) {
+      const [px, py] = stack.pop();
+      if (px < 0 || py < 0 || px >= cv.width || py >= cv.height) continue;
+      const i = at(px, py);
+      if (d[i] !== t[0] || d[i+1] !== t[1] || d[i+2] !== t[2] || d[i+3] !== t[3]) continue;
+      d[i] = m[0]; d[i+1] = m[1]; d[i+2] = m[2]; d[i+3] = 255;
+      stack.push([px+1, py], [px-1, py], [px, py+1], [px, py-1]);
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+
+  function stroke(a, b) {
+    ctx.strokeStyle = tool === 'eraser' ? '#ffffff' : colour;
+    ctx.lineWidth = tool === 'brush' ? size * 2 : tool === 'eraser' ? size * 3 : size;
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  }
+
+  cv.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    const p = pos(e);
+    push();
+    if (tool === 'fill') { fill(p.x, p.y, colour); return; }
+    drawing = true; sx = p.x; sy = p.y;
+    snapshot = ctx.getImageData(0, 0, cv.width, cv.height);
+    try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+    if (tool === 'pencil' || tool === 'brush' || tool === 'eraser') stroke(p, p);
+  });
+
+  cv.addEventListener('pointermove', e => {
+    if (!drawing) return;
+    const p = pos(e);
+    if (tool === 'pencil' || tool === 'brush' || tool === 'eraser') {
+      stroke({ x: sx, y: sy }, p); sx = p.x; sy = p.y; return;
+    }
+    if (tool === 'spray') {
+      ctx.fillStyle = colour;
+      for (let i = 0; i < 14; i++) {
+        const a = Math.random() * Math.PI * 2, r = Math.random() * size * 2.5;
+        ctx.fillRect(p.x + Math.cos(a) * r, p.y + Math.sin(a) * r, 1, 1);
+      }
+      return;
+    }
+    /* shapes redraw from the snapshot, so dragging previews instead of smearing */
+    ctx.putImageData(snapshot, 0, 0);
+    ctx.strokeStyle = colour; ctx.lineWidth = size;
+    ctx.beginPath();
+    if (tool === 'line') { ctx.moveTo(sx, sy); ctx.lineTo(p.x, p.y); }
+    if (tool === 'rect') ctx.rect(sx, sy, p.x - sx, p.y - sy);
+    if (tool === 'ellipse') ctx.ellipse((sx + p.x) / 2, (sy + p.y) / 2, Math.abs(p.x - sx) / 2, Math.abs(p.y - sy) / 2, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  });
+
+  const stop = () => { drawing = false; snapshot = null; };
+  cv.addEventListener('pointerup', stop);
+  cv.addEventListener('pointercancel', stop);
+  cv.addEventListener('pointerleave', () => { if (tool !== 'pencil' && tool !== 'brush' && tool !== 'eraser') stop(); });
+
+  $('#ptUndo', win).addEventListener('click', () => {
+    const last = undo.pop();
+    if (last) ctx.putImageData(last, 0, 0);
+  });
+  $('#ptClear', win).addEventListener('click', () => {
+    push(); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cv.width, cv.height);
+  });
+
+  $('#ptWall', win).addEventListener('click', () => {
+    try {
+      localStorage.setItem(CUSTOM_WALL_KEY, cv.toDataURL('image/png'));
+      applyWallpaper('custom');
+      toast('Your drawing is now the wallpaper. Right-click the desktop to change it back.');
+    } catch (err) {
+      toast('The drawing was too large to keep. Try clearing some of it.');
+    }
+  });
+
+  $('#ptShare', win).addEventListener('click', () => {
+    cv.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'toad-paint.png'; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      open('https://x.com/intent/post?text=' + encodeURIComponent(
+        'made this in Toad Paint 🐸🎨\n\nthetoadmeme.com'
+      ), '_blank', 'noopener');
+    }, 'image/png');
+  });
+}
+
 function mountExplorer(win) {
   $$('.ie__tb[data-nav]', win).forEach(b => b.addEventListener('click', () => Sound.blip(600, .04, .03)));
 }
