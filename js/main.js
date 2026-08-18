@@ -1072,6 +1072,8 @@ const CHAT_URL  = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/toad_chat_pu
 const CHAT_AVA  = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/toad_avatars';
 const CHAT_ME   = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_whoami';
 const CHAT_SETA = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_set_avatar';
+const CHAT_HERE = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_here';
+const CHAT_WHOS = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/toad_online';
 const CHAT_CFG  = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/toad_chat_config';
 const CHAT_RPC  = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_say';
 const NICK_KEY  = 'toados.nick';
@@ -1102,6 +1104,25 @@ async function chatSetFace(dataUrl) {
   const r = await fetch(CHAT_SETA, { method: 'POST', headers: GAL_HEAD,
     body: JSON.stringify({ speaker: voterToken(), avatar: dataUrl }) });
   if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+/* Presence is a heartbeat, not a subscription: the browser says "still here"
+   while the window is open, and anyone unheard from for ninety seconds has
+   left. Nothing is kept that the room does not already show. */
+async function chatHere(nick) {
+  const r = await fetch(CHAT_HERE, { method: 'POST', headers: GAL_HEAD,
+    body: JSON.stringify({ speaker: voterToken(), nick }) }).catch(() => null);
+  if (r && !r.ok) {
+    /* A refused name has to be said out loud. Silently leaving somebody off
+       the list looks like the list is broken. */
+    try { return { error: JSON.parse(await r.text()).message }; } catch (e) { return { error: 'no' }; }
+  }
+  return {};
+}
+async function chatOnline() {
+  const r = await fetch(CHAT_WHOS + '?select=who,nick,avatar', { headers: GAL_HEAD });
+  if (!r.ok) return [];
   return r.json();
 }
 
@@ -1227,6 +1248,42 @@ function mountChat(win) {
     log.appendChild(l);
   }
 
+  const list = $('#chOnline', win), headCount = $('#chCount', win);
+
+  async function refreshList() {
+    const n = nick.value.trim();
+    if (n) {
+      const res = await chatHere(n);             // announce, then read the room
+      if (res.error === 'that name is taken') toast('That name belongs to the toad. Pick another.');
+    }
+    const rows = await chatOnline();
+    list.innerHTML = '';
+    rows.forEach(r => {
+      const li = document.createElement('li');
+      li.className = 'msn__buddy' + (r.who === mine ? ' is-me' : '');
+      if (r.avatar) {
+        const f = document.createElement('img');
+        f.className = 'msn__buddyface'; f.alt = ''; f.src = r.avatar;   // src, never innerHTML
+        li.appendChild(f);
+      } else {
+        const dot = document.createElement('span');
+        dot.className = 'msn__buddydot';
+        li.appendChild(dot);
+      }
+      const nm = document.createElement('span');
+      nm.textContent = r.nick;                   // textContent: a stranger's text
+      li.appendChild(nm);
+      list.appendChild(li);
+    });
+    headCount.textContent = rows.length ? '(' + rows.length + ')' : '';
+    who.textContent = !rows.length ? 'nobody here but you'
+      : rows.length === 1 ? '1 toad in the pond' : rows.length + ' toads in the pond';
+  }
+
+  /* Typing a name is what puts you on the list, so do not wait for the next
+     tick to show it. */
+  nick.addEventListener('change', () => refreshList());
+
   async function poll(first) {
     if (dead) return;
     try {
@@ -1250,8 +1307,7 @@ function mountChat(win) {
       state.textContent = '';
       /* Counting distinct voices in the last five minutes is honest and cheap;
          it is not presence, and it does not pretend to be. */
-      const heads = new Set([...log.querySelectorAll('.msn__line b')].slice(-40).map(b => b.textContent));
-      who.textContent = heads.size ? `${heads.size} ${heads.size === 1 ? 'toad has' : 'toads have'} spoken recently` : 'quiet in here';
+      await refreshList();
     } catch (e) {
       state.textContent = 'offline';
     }
