@@ -915,22 +915,42 @@ const ASSIST_LINES = [
   'This desktop is not financial advice. It is barely a desktop.',
 ];
 
+/* WHEN SOMETHING NEW SHIPS, ADD A LINE HERE. Newest first. These are said
+   roughly every other time, so a returning visitor finds out what changed
+   without anybody having to announce it anywhere. Keep the oldest few and
+   drop the rest, or the news stops being news. */
+const NEWS_LINES = [
+  'New: the public gallery. Anything drawn in Toad Paint can go up on the wall.',
+  'New: you can vote on other people\u2019s drawings. Open the Gallery and press the heart.',
+  'New in Toad Paint: stamps. Drop one, then drag it, resize it from a corner, or throw it away.',
+  'Tip: in Toad Paint, the arrow tool picks a stamp back up. Nothing you place is ever stuck.',
+  'New in Toad Paint: Mirror. Every stroke happens twice, and suddenly you can draw.',
+  'New in Toad Paint: Start from a meme, then draw straight over it.',
+  'Canal 88 is up to seventeen channels now. The reception has never been worse.',
+];
+
 /* Never twice in a row, never on top of a balloon that is still up, and
    never while the tab is in the background — nobody wants to come back to
    a queue of them. */
-let lastLine = -1;
-function scheduleAssistant() {
-  const wait = 45000 + Math.floor(Math.random() * 45000);
+let lastLine = '';
+function sayAssistant(pool) {
+  let line;
+  do { line = pool[Math.floor(Math.random() * pool.length)]; }
+  while (line === lastLine && pool.length > 1);
+  lastLine = line;
+  assistant(line);
+}
+
+function scheduleAssistant(first) {
+  const wait = first ? 9000 : 45000 + Math.floor(Math.random() * 45000);
   setTimeout(() => {
     const clip = $('#clip');
     if (clip && clip.hidden && !document.hidden) {
-      let i;
-      do { i = Math.floor(Math.random() * ASSIST_LINES.length); }
-      while (i === lastLine && ASSIST_LINES.length > 1);
-      lastLine = i;
-      assistant(ASSIST_LINES[i]);
+      /* The first thing it says is always news; after that it alternates, so
+         the jokes still get a turn. */
+      sayAssistant(first || Math.random() < .5 ? NEWS_LINES : ASSIST_LINES);
     }
-    scheduleAssistant();
+    scheduleAssistant(false);
   }, wait);
 }
 
@@ -957,6 +977,8 @@ const PAINT_COLOURS = [
    the font lacks it, which is most places. */
 const svg = d => '<svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">' + d + '</svg>';
 const PAINT_TOOLS = [
+  { id:'select',  label:'Select \u2014 move, resize or delete a stamp',
+    glyph: svg('<path d="M4 2l8 6-3.4.7 2.2 4-1.8.9-2.2-4L4 12z" fill="#fff" stroke="#000" stroke-width="1.1" stroke-linejoin="round"/>') },
   { id:'pencil',  label:'Pencil',    glyph: svg('<path d="M2 14l1-3 8-8 2 2-8 8z" fill="#f5c518" stroke="#5a4a10"/><path d="M11 3l1.4-1.4 2 2L13 5z" fill="#8d99a8" stroke="#3b4450"/>') },
   { id:'brush',   label:'Brush',     glyph: svg('<path d="M3 13c0-2 1-3 2-3s2 1 2 2-1 2-4 2z" fill="#e0342a" stroke="#6d1a15"/><path d="M6 10l6-7 3 2-6 7z" fill="#c9a06a" stroke="#7a5a2e"/>') },
   { id:'eraser',  label:'Eraser',    glyph: svg('<rect x="2" y="8" width="9" height="5" rx="1" fill="#fff" stroke="#5a6470"/><path d="M5 8l4-5 5 3-3 5z" fill="#f2a0a0" stroke="#7a3b3b"/>') },
@@ -997,9 +1019,51 @@ const GAL_URL = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/toad_gallery';
 const GAL_KEY = 'sb_publishable_JqeJrbDTeEJGPc-kYU81jQ_tcXL5m9o';
 const GAL_HEAD = { apikey: GAL_KEY, Authorization: 'Bearer ' + GAL_KEY, 'Content-Type': 'application/json' };
 
-async function galleryFetch() {
-  const r = await fetch(GAL_URL + '?select=id,name,image,created_at&order=created_at.desc&limit=60', { headers: GAL_HEAD });
+/* Reads come from a view that only ever contains approved, unhidden rows and
+   carries the tally with them, so the count cannot be read from somewhere the
+   picture is not. */
+const GAL_VIEW = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/toad_gallery_public';
+const GAL_RPC  = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_vote';
+const VOTER_KEY = 'toados.voter', VOTED_KEY = 'toados.voted';
+
+/* A random name for this browser. It is not an identity and does not pretend
+   to be one -- it stops the same person counting twice by accident, which is
+   what a like button on a meme site is actually for. */
+function voterToken() {
+  try {
+    let t = localStorage.getItem(VOTER_KEY);
+    if (!t) {
+      t = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now());
+      localStorage.setItem(VOTER_KEY, t);
+    }
+    return t;
+  } catch (e) { return 'anon-' + String(Math.random()).slice(2, 18); }
+}
+const votedSet = () => {
+  try { return new Set(JSON.parse(localStorage.getItem(VOTED_KEY) || '[]')); }
+  catch (e) { return new Set(); }
+};
+const rememberVote = (id, mine) => {
+  try {
+    const v = votedSet();
+    mine ? v.add(id) : v.delete(id);
+    localStorage.setItem(VOTED_KEY, JSON.stringify([...v]));
+  } catch (e) {}
+};
+
+async function galleryFetch(order) {
+  const by = order === 'top' ? 'votes.desc,created_at.desc' : 'created_at.desc';
+  const r = await fetch(GAL_VIEW + '?select=id,name,image,created_at,votes&order=' + by + '&limit=60', { headers: GAL_HEAD });
   if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+async function galleryVote(id) {
+  const r = await fetch(GAL_RPC, {
+    method: 'POST', headers: GAL_HEAD,
+    body: JSON.stringify({ pic: id, voter: voterToken() }),
+  });
+  if (!r.ok) throw new Error(await r.text());
   return r.json();
 }
 
@@ -1013,38 +1077,102 @@ async function gallerySubmit(name, dataUrl) {
 }
 
 function mountGallery(win) {
-  const grid = $('#galGrid', win), count = $('#galCount', win);
+  const grid  = $('#galGrid', win),  count = $('#galCount', win);
+  const view  = $('#galView', win),  big   = $('#galBig', win);
+  const title = $('#galTitle', win), meta  = $('#galMeta', win);
+  const voteBtn = $('#galVote', win), sortBtn = $('#galSort', win);
+  let order = 'new', rows = [], open = null;
+
+  const label = (n, mine) => `${mine ? '\u2665' : '\u2661'} ${n}`;
+  const when = iso => {
+    const d = new Date(iso);
+    return isNaN(d) ? '' : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
+  /* One place decides how a vote button looks, so the tile and the big view
+     can never disagree about whether you already voted. */
+  function paintVote(btn, row) {
+    const mine = votedSet().has(row.id);
+    btn.textContent = label(row.votes || 0, mine);
+    btn.classList.toggle('is-mine', mine);
+    btn.title = mine ? 'You voted for this. Press again to take it back.' : 'Vote for this drawing';
+  }
+
+  async function cast(row, ...btns) {
+    btns.forEach(b => b && (b.disabled = true));
+    try {
+      const res = await galleryVote(row.id);
+      row.votes = res.votes;
+      rememberVote(row.id, res.mine);
+      btns.forEach(b => b && paintVote(b, row));
+      Sound.blip(res.mine ? 980 : 520, .05, .03);
+    } catch (e) {
+      toast('That vote did not go through.');
+    }
+    btns.forEach(b => b && (b.disabled = false));
+  }
+
+  function show(row) {
+    open = row;
+    big.src = row.image;
+    title.textContent = row.name;                 // textContent: a stranger's text
+    meta.textContent = 'Drawn in Toad Paint \u00b7 ' + when(row.created_at);
+    paintVote(voteBtn, row);
+    view.hidden = false;
+    Sound.blip(760, .04, .03);
+  }
+  const back = () => { view.hidden = true; open = null; };
+
+  $('#galBack', win).addEventListener('click', back);
+  voteBtn.addEventListener('click', () => {
+    if (!open) return;
+    const tile = grid.querySelector(`[data-id="${open.id}"] .gal__tilevote`);
+    cast(open, voteBtn, tile);
+  });
+  win.addEventListener('keydown', e => { if (e.key === 'Escape' && !view.hidden) back(); });
 
   async function render() {
     grid.innerHTML = '';
-    count.textContent = 'loading…';
+    count.textContent = 'loading\u2026';
     try {
-      const rows = await galleryFetch();
-      count.textContent = rows.length === 1 ? '1 picture' : rows.length + ' pictures';
-      if (!rows.length) {
-        count.textContent = 'nothing here yet';
-        return;
-      }
+      rows = await galleryFetch(order);
+      count.textContent = !rows.length ? 'nothing here yet'
+                        : rows.length === 1 ? '1 picture' : rows.length + ' pictures';
       rows.forEach(row => {
-        const b = document.createElement('button');
-        b.className = 'file';
+        /* A div rather than a button, because a vote button lives inside it
+           and a button inside a button is not a thing. */
+        const card = document.createElement('div');
+        card.className = 'file'; card.dataset.id = row.id;
+        card.setAttribute('role', 'button'); card.tabIndex = 0;
+
         const img = document.createElement('img');
         img.className = 'file__thumb'; img.loading = 'lazy'; img.alt = '';
-        img.src = row.image;                         // src, never innerHTML
+        img.src = row.image;                       // src, never innerHTML
+
         const cap = document.createElement('span');
-        cap.textContent = row.name;                  // textContent: the name is a stranger's text
-        b.append(img, cap);
-        b.addEventListener('click', () => {
-          $$('.file', grid).forEach(f => f.classList.remove('is-sel'));
-          b.classList.add('is-sel');
-        });
-        grid.appendChild(b);
+        cap.textContent = row.name;
+
+        const v = document.createElement('button');
+        v.type = 'button'; v.className = 'gal__tilevote';
+        paintVote(v, row);
+        v.addEventListener('click', e => { e.stopPropagation(); cast(row, v, open && open.id === row.id ? voteBtn : null); });
+
+        card.append(img, cap, v);
+        card.addEventListener('click', () => show(row));
+        card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); show(row); } });
+        grid.appendChild(card);
       });
     } catch (e) {
       count.textContent = 'could not load the gallery';
     }
   }
 
+  sortBtn.addEventListener('click', () => {
+    order = order === 'new' ? 'top' : 'new';
+    sortBtn.textContent = order === 'top' ? 'Sort: most loved' : 'Sort: newest';
+    Sound.blip(700, .04, .03);
+    render();
+  });
   $('#galReload', win).addEventListener('click', () => { Sound.blip(700, .04, .03); render(); });
   render();
 }
@@ -1059,6 +1187,13 @@ function mountPaint(win) {
   let drawing = false, sx = 0, sy = 0, snapshot = null;
   let mirror = false, stamp = null;
   const stampImg = {};
+  /* Stamps used to be paint -- once down, gone. They are objects now: they
+     live above the canvas in their own list, so they can still be picked up,
+     resized and thrown away long after they were placed. The pencil keeps
+     writing straight onto the canvas underneath, untouched. */
+  let objects = [], sel = null, grab = null;
+  const layer = $('#ptObjects', win), lctx = layer.getContext('2d');
+  const HANDLE = 7, BADGE = 9;
   const undo = [];
 
   ctx.fillStyle = '#ffffff';
@@ -1080,12 +1215,7 @@ function mountPaint(win) {
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'pt' + (t.id === tool ? ' is-on' : '');
     b.title = t.label; b.innerHTML = t.glyph;
-    b.addEventListener('click', () => {
-      tool = t.id;
-      $$('.pt', tools).forEach(x => x.classList.remove('is-on'));
-      b.classList.add('is-on');
-      Sound.blip(720, .03, .025);
-    });
+    b.addEventListener('click', () => { useTool(t.id); Sound.blip(720, .03, .025); });
     tools.appendChild(b);
   });
 
@@ -1102,21 +1232,13 @@ function mountPaint(win) {
     b.type = 'button'; b.className = 'pt pt--stamp'; b.title = st.label;
     b.innerHTML = `<img src="${st.src}" alt="${st.label}">`;
     b.addEventListener('click', () => {
-      tool = 'stamp'; stamp = st.id;
-      $$('.pt', tools).forEach(x => x.classList.remove('is-on'));
+      useTool('stamp'); stamp = st.id;
       $$('.pt--stamp', stampBar).forEach(x => x.classList.remove('is-on'));
       b.classList.add('is-on');
       Sound.blip(820, .04, .03);
     });
     stampBar.appendChild(b);
   });
-  /* Choosing a real tool again has to release the stamp, or clicks would
-     keep dropping toad heads while the pencil looks selected. */
-  tools.addEventListener('click', () => {
-    stamp = null;
-    $$('.pt--stamp', stampBar).forEach(x => x.classList.remove('is-on'));
-  });
-
   $('#ptMirror', win).addEventListener('change', e => {
     mirror = e.target.checked;
     Sound.blip(mirror ? 900 : 600, .04, .03);
@@ -1194,27 +1316,132 @@ function mountPaint(win) {
     if (mirror) segment(flip(a), flip(b));
   }
 
-  function placeStamp(p) {
+  function addStamp(p) {
     const img = stampImg[stamp];
     if (!img || !img.complete || !img.naturalWidth) return;
     const w = STAMP_PX[size] || 84;
     const h = w * (img.naturalHeight / img.naturalWidth);
-    ctx.drawImage(img, p.x - w / 2, p.y - h / 2, w, h);
-    if (mirror) {
-      const f = flip(p);
-      ctx.save();
-      ctx.translate(f.x, f.y); ctx.scale(-1, 1);
-      ctx.drawImage(img, -w / 2, -h / 2, w, h);
-      ctx.restore();
+    const put = (cx, flip) => objects.push({ id: stamp, x: cx - w / 2, y: p.y - h / 2, w, h, flip });
+    put(p.x, false);
+    if (mirror) put(cv.width - p.x, true);
+    sel = objects[objects.length - 1];
+    render();
+  }
+
+  function drawObjects(g, withHandles) {
+    objects.forEach(o => {
+      const img = stampImg[o.id];
+      if (!img || !img.complete) return;
+      g.save();
+      if (o.flip) { g.translate(o.x + o.w / 2, 0); g.scale(-1, 1); g.translate(-(o.x + o.w / 2), 0); }
+      g.drawImage(img, o.x, o.y, o.w, o.h);
+      g.restore();
+    });
+    if (!withHandles || !sel) return;
+    /* The frame is drawn white-under-black so it stays visible on any picture. */
+    g.save();
+    g.lineWidth = 1;
+    [['#fff', 0], ['#000', 0]].forEach(([c], i) => {
+      g.strokeStyle = c; g.setLineDash(i ? [4, 3] : []);
+      g.strokeRect(sel.x - .5, sel.y - .5, sel.w + 1, sel.h + 1);
+    });
+    g.setLineDash([]);
+    corners(sel).forEach(c => {
+      g.fillStyle = '#fff'; g.strokeStyle = '#000';
+      g.fillRect(c.x - HANDLE / 2, c.y - HANDLE / 2, HANDLE, HANDLE);
+      g.strokeRect(c.x - HANDLE / 2, c.y - HANDLE / 2, HANDLE, HANDLE);
+    });
+    const b = badge(sel);
+    g.fillStyle = '#c0392b'; g.strokeStyle = '#fff'; g.lineWidth = 1.5;
+    g.beginPath(); g.arc(b.x, b.y, BADGE, 0, Math.PI * 2); g.fill(); g.stroke();
+    g.strokeStyle = '#fff'; g.lineWidth = 2;
+    g.beginPath();
+    g.moveTo(b.x - 4, b.y - 4); g.lineTo(b.x + 4, b.y + 4);
+    g.moveTo(b.x + 4, b.y - 4); g.lineTo(b.x - 4, b.y + 4);
+    g.stroke();
+    g.restore();
+  }
+
+  const corners = o => [
+    { k: 'nw', x: o.x,       y: o.y },
+    { k: 'ne', x: o.x + o.w, y: o.y },
+    { k: 'sw', x: o.x,       y: o.y + o.h },
+    { k: 'se', x: o.x + o.w, y: o.y + o.h },
+  ];
+  const badge = o => ({ x: o.x + o.w, y: o.y - 2 });
+
+  function render() {
+    lctx.clearRect(0, 0, layer.width, layer.height);
+    drawObjects(lctx, tool === 'select');
+    $('#ptDel', win).disabled = !sel;
+  }
+
+  /* Everything that leaves Paint -- wallpaper, download, gallery -- has to be
+     the canvas and the objects pressed together, or the stamps would vanish. */
+  function flatten() {
+    const out = document.createElement('canvas');
+    out.width = cv.width; out.height = cv.height;
+    const g = out.getContext('2d');
+    g.drawImage(cv, 0, 0);
+    drawObjects(g, false);
+    return out;
+  }
+
+  const hitObject = p => {
+    for (let i = objects.length - 1; i >= 0; i--) {
+      const o = objects[i];
+      if (p.x >= o.x && p.x <= o.x + o.w && p.y >= o.y && p.y <= o.y + o.h) return o;
     }
+    return null;
+  };
+  const near = (p, c, r) => Math.abs(p.x - c.x) <= r && Math.abs(p.y - c.y) <= r;
+
+  function removeSelected() {
+    if (!sel) return;
+    objects = objects.filter(o => o !== sel);
+    sel = null; render();
+    Sound.blip(320, .06, .03);
+  }
+
+  /* Picking a stamp and immediately wanting to move it is the common case, so
+     placing one hands the arrow back automatically. */
+  function useTool(id) {
+    tool = id;
+    $$('.pt', tools).forEach((x, i) => x.classList.toggle('is-on', PAINT_TOOLS[i] && PAINT_TOOLS[i].id === id));
+    if (id !== 'stamp') { stamp = null; $$('.pt--stamp', stampBar).forEach(x => x.classList.remove('is-on')); }
+    if (id !== 'select') sel = null;
+    cv.classList.toggle('is-picking', id === 'select');
+    render();
   }
 
   cv.addEventListener('pointerdown', e => {
     e.preventDefault();
     const p = pos(e);
+
+    if (tool === 'select') {
+      if (sel && near(p, badge(sel), BADGE + 2)) { removeSelected(); return; }
+      if (sel) {
+        const c = corners(sel).find(c => near(p, c, HANDLE + 3));
+        if (c) {
+          grab = { mode: 'size', k: c.k, o: sel, ox: sel.x, oy: sel.y, ow: sel.w, oh: sel.h };
+          try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+          return;
+        }
+      }
+      const hit = hitObject(p);
+      sel = hit;
+      if (hit) {
+        grab = { mode: 'move', o: hit, dx: p.x - hit.x, dy: p.y - hit.y };
+        try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+        Sound.blip(760, .03, .02);
+      }
+      render();
+      return;
+    }
+
     push();
     if (tool === 'fill')  { fill(p.x, p.y, colour); return; }
-    if (tool === 'stamp') { placeStamp(p); Sound.blip(940, .04, .03); return; }
+    if (tool === 'stamp') { addStamp(p); Sound.blip(940, .04, .03); useTool('select'); return; }
     drawing = true; sx = p.x; sy = p.y;
     snapshot = ctx.getImageData(0, 0, cv.width, cv.height);
     try { cv.setPointerCapture(e.pointerId); } catch (err) {}
@@ -1222,6 +1449,25 @@ function mountPaint(win) {
   });
 
   cv.addEventListener('pointermove', e => {
+    if (grab) {
+      const p = pos(e), o = grab.o;
+      if (grab.mode === 'move') { o.x = p.x - grab.dx; o.y = p.y - grab.dy; }
+      else {
+        /* Resize from the corner you are not holding, and keep the shape --
+           a squashed toad head looks like a mistake, never like a choice. */
+        const ax = grab.k.includes('w') ? grab.ox + grab.ow : grab.ox;
+        const ay = grab.k.includes('n') ? grab.oy + grab.oh : grab.oy;
+        const ratio = grab.oh / grab.ow;
+        let w = Math.abs(p.x - ax);
+        w = Math.max(16, Math.min(w, cv.width * 1.5));
+        const h = w * ratio;
+        o.w = w; o.h = h;
+        o.x = grab.k.includes('w') ? ax - w : ax;
+        o.y = grab.k.includes('n') ? ay - h : ay;
+      }
+      render();
+      return;
+    }
     if (!drawing) return;
     const p = pos(e);
     if (tool === 'pencil' || tool === 'brush' || tool === 'eraser') {
@@ -1251,10 +1497,17 @@ function mountPaint(win) {
     if (mirror) shape(cv.width - sx, sy, cv.width - p.x, p.y);
   });
 
-  const stop = () => { drawing = false; snapshot = null; };
+  const stop = () => { drawing = false; snapshot = null; grab = null; };
   cv.addEventListener('pointerup', stop);
   cv.addEventListener('pointercancel', stop);
   cv.addEventListener('pointerleave', () => { if (tool !== 'pencil' && tool !== 'brush' && tool !== 'eraser') stop(); });
+
+  $('#ptDel', win).addEventListener('click', removeSelected);
+  win.addEventListener('keydown', e => {
+    if ((e.key === 'Delete' || e.key === 'Backspace') && sel) { e.preventDefault(); removeSelected(); }
+    if (e.key === 'Escape' && sel) { sel = null; render(); }
+  });
+  win.tabIndex = -1;
 
   $('#ptUndo', win).addEventListener('click', () => {
     const last = undo.pop();
@@ -1262,11 +1515,12 @@ function mountPaint(win) {
   });
   $('#ptClear', win).addEventListener('click', () => {
     push(); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, cv.width, cv.height);
+    objects = []; sel = null; render();
   });
 
   $('#ptWall', win).addEventListener('click', () => {
     try {
-      localStorage.setItem(CUSTOM_WALL_KEY, cv.toDataURL('image/png'));
+      localStorage.setItem(CUSTOM_WALL_KEY, flatten().toDataURL('image/png'));
       applyWallpaper('custom');
       toast('Your drawing is now the wallpaper. Right-click the desktop to change it back.');
     } catch (err) {
@@ -1280,13 +1534,14 @@ function mountPaint(win) {
      will not fit, stepping the quality down rather than rejecting the drawing. */
   const GAL_MAX = 255000;
   function exportForGallery() {
-    const png = cv.toDataURL('image/png');
+    const flat = flatten();
+    const png = flat.toDataURL('image/png');
     if (png.length <= GAL_MAX) return png;
     for (const q of [0.85, 0.7, 0.55, 0.4]) {
-      const jpg = cv.toDataURL('image/jpeg', q);
+      const jpg = flat.toDataURL('image/jpeg', q);
       if (jpg.length <= GAL_MAX) return jpg;
     }
-    return cv.toDataURL('image/jpeg', 0.3);
+    return flat.toDataURL('image/jpeg', 0.3);
   }
 
   $('#ptSubmit', win).addEventListener('click', async () => {
@@ -1304,14 +1559,33 @@ function mountPaint(win) {
   });
 
   $('#ptShare', win).addEventListener('click', () => {
-    cv.toBlob(blob => {
+    /* X cannot be handed a picture through a link -- an intent URL carries
+       text and nothing else, so the post preview shows this site's card
+       rather than the drawing. The best we can do is put the image where it
+       is one gesture away and say so plainly, instead of letting people
+       believe it went along. */
+    flatten().toBlob(async blob => {
+      const file = new File([blob], 'toad-paint.png', { type: 'image/png' });
+      const text = 'made this in Toad Paint 🐸🎨\n\nthetoadmeme.com';
+
+      // Phones can hand the actual file to the app. Nothing else needed.
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file], text }); return; } catch (err) { if (err.name === 'AbortError') return; }
+      }
+
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url; a.download = 'toad-paint.png'; a.click();
       setTimeout(() => URL.revokeObjectURL(url), 4000);
-      open('https://x.com/intent/post?text=' + encodeURIComponent(
-        'made this in Toad Paint 🐸🎨\n\nthetoadmeme.com'
-      ), '_blank', 'noopener');
+
+      let msg = 'Saved to your downloads. X cannot take the picture through a link — drag the file into the post.';
+      try {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        msg = 'Copied and saved. Click the post box and paste — the drawing goes in as an image.';
+      } catch (err) {}
+      toast(msg);
+
+      open('https://x.com/intent/post?text=' + encodeURIComponent(text), '_blank', 'noopener');
     }, 'image/png');
   });
 }
