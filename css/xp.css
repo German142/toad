@@ -1097,3 +1097,39 @@ input, textarea{ cursor:text; }
 @media (max-width:640px){
   .msn__list { width:96px; }
 }
+/* the way back to the room, lit until it is used */
+.xp-btn.is-waiting { border-color:#74c13b; box-shadow:0 0 0 2px rgba(116,193,59,.45); animation:toad-wait 1.4s ease-in-out infinite; }
+@keyframes toad-wait { 0%,100%{ box-shadow:0 0 0 2px rgba(116,193,59,.45); } 50%{ box-shadow:0 0 0 5px rgba(116,193,59,.12); } }
+@media (prefers-reduced-motion:reduce){ .xp-btn.is-waiting { animation:none; } }
+
+/* ── the room, over Toad Run ──────────────────────────────────
+   Bottom left, dimmed until touched. No panel behind it: a box would
+   sit on the game, a shadow on the letters does not. */
+.gchat {
+  position:absolute; left:14px; bottom:14px; z-index:5;
+  width:min(320px, 42vw); display:flex; flex-direction:column; gap:5px;
+  opacity:.62; transition:opacity .18s ease;
+  font:12px/1.45 "Segoe UI", -apple-system, Helvetica, Arial, sans-serif;
+}
+.gchat:hover, .gchat.is-live { opacity:1; }
+.gchat__log { display:flex; flex-direction:column; gap:2px; pointer-events:none; }
+.gchat__line {
+  margin:0; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.95), 0 0 6px rgba(0,0,0,.7);
+  overflow-wrap:anywhere;
+}
+.gchat__line b { color:#9fe06a; margin-right:5px; }
+.gchat__line.is-me b { color:#ffd166; }
+.gchat__line.is-toad b { color:#74c13b; }
+.gchat__line.is-toad { font-style:italic; }
+.gchat__face { width:15px; height:15px; vertical-align:-3px; margin-right:4px;
+               border:1px solid rgba(255,255,255,.6); object-fit:cover; }
+.gchat__in {
+  width:100%; font:inherit; padding:4px 8px; color:#fff;
+  background:rgba(0,0,0,.34); border:1px solid rgba(255,255,255,.22); border-radius:4px;
+  outline:none;
+}
+.gchat__in::placeholder { color:rgba(255,255,255,.5); }
+.gchat.is-live .gchat__in { background:rgba(0,0,0,.62); border-color:#74c13b; }
+@media (max-width:640px){ .gchat { width:min(240px,58vw); left:8px; bottom:8px; font-size:11px; } }
+/* class rules that set display beat the hidden attribute — say it once, loudly */
+.ie__tb[hidden], .xp-btn[hidden], .gal__flag[hidden] { display:none !important; }

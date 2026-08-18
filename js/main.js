@@ -489,8 +489,111 @@ function launchGame(id) {
   frame.src = '/toadrun/';                  // trailing slash matters, as ever
   setTimeout(() => { try { frame.contentWindow.focus(); } catch (e) {} }, 300);
 
+  mountGameChat(gameFS);
+
   /* real browser fullscreen while we still hold the user gesture */
   gameFS.requestFullscreen?.().catch(() => { /* denied is fine — the overlay is full-bleed anyway */ });
+}
+
+/* ── the room, over the game ───────────────────────────────────
+   Deliberately built on top of the frame rather than inside the game:
+   Toad Run belongs to somebody else, and a chat that lives in this file
+   cannot collide with what they are building.
+
+   It reads the same room as Toad Messenger and stays out of the way --
+   dimmed until it is touched, no background behind the lines, and it
+   never steals the arrow keys the game is listening for. */
+function mountGameChat(host) {
+  const box = document.createElement('div');
+  box.className = 'gchat';
+  box.innerHTML =
+    `<div class="gchat__log" id="gcLog"></div>
+     <form class="gchat__row" id="gcForm">
+       <input class="gchat__in" id="gcIn" maxlength="200" placeholder="press Enter to chat" autocomplete="off" spellcheck="false" />
+     </form>`;
+  host.appendChild(box);
+
+  const log = box.querySelector('#gcLog'), input = box.querySelector('#gcIn');
+  let lastId = 0, dead = false, faces = {}, mine = null, timer = null;
+  let polling = false;
+  const seen = new Set();
+
+  const nickOf = () => { try { return (localStorage.getItem(NICK_KEY) || '').trim(); } catch (e) { return ''; } };
+
+  /* The game listens for arrows and space. While the line is focused those
+     keys belong to the writer, and Escape hands them back. */
+  input.addEventListener('keydown', e => {
+    e.stopPropagation();
+    if (e.key === 'Escape') { input.blur(); box.classList.remove('is-live'); }
+  });
+  input.addEventListener('focus', () => box.classList.add('is-live'));
+  input.addEventListener('blur',  () => box.classList.remove('is-live'));
+
+  box.querySelector('#gcForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text) { input.blur(); return; }
+    const n = nickOf();
+    if (!n) { line({ nick: 'Toad', is_bot: true, body: 'Open the Messenger once and pick a name first.' }); return; }
+    input.value = '';
+    try {
+      const res = await chatSay(n, text);
+      if (res && res.ok === false) line({ nick: 'Toad', is_bot: true, body: 'Keep it clean in here.' });
+      await tick();
+    } catch (err) {
+      line({ nick: 'Toad', is_bot: true, body: err.message === 'no links in here' ? 'No links in here.' : 'That did not go through.' });
+    }
+  });
+
+  function line(row) {
+    const l = document.createElement('p');
+    l.className = 'gchat__line' + (row.is_bot ? ' is-toad' : '') + (!row.is_bot && row.who === mine ? ' is-me' : '');
+    const face = row.is_bot ? '/assets/brand/logo.png' : faces[row.who];
+    if (face) {
+      const f = document.createElement('img');
+      f.className = 'gchat__face'; f.alt = ''; f.src = face;      // src, never innerHTML
+      l.appendChild(f);
+    }
+    const n = document.createElement('b');
+    n.textContent = (row.is_bot ? 'Toad' : row.nick) + ':';        // textContent, always
+    const t = document.createElement('span');
+    t.textContent = row.image && !row.body ? 'sent a drawing' : row.body;
+    l.append(n, t);
+    log.appendChild(l);
+    while (log.children.length > 7) log.firstChild.remove();       // a strip, not a window
+    log.scrollTop = log.scrollHeight;
+  }
+
+  async function tick(first) {
+    if (dead || !gameFS) { clearTimeout(timer); return; }
+    if (polling) return;
+    polling = true;
+    clearTimeout(timer);
+    try {
+      if (first) { mine = await chatWhoAmI(); faces = await chatFaces(); }
+      const rows = await chatFetch(lastId);
+      if (rows.some(r => !r.is_bot && !faces[r.who])) faces = await chatFaces();
+      rows.forEach(r => {
+        lastId = Math.max(lastId, r.id);
+        if (seen.has(r.id)) return;
+        seen.add(r.id);
+        line(r);
+      });
+      const n = nickOf();
+      if (n) chatHere(n);
+    } catch (e) { /* a quiet strip is better than an error over a game */ }
+    polling = false;
+    clearTimeout(timer);
+    timer = setTimeout(() => tick(false), document.hidden ? 15000 : 4000);
+  }
+
+  /* When the game closes, the strip goes with it. */
+  const obs = new MutationObserver(() => {
+    if (!host.isConnected) { dead = true; clearTimeout(timer); obs.disconnect(); }
+  });
+  obs.observe(document.body, { childList: true });
+
+  tick(true);
 }
 function quitGame() {
   if (!gameFS) return;
@@ -1028,6 +1131,7 @@ const GAL_HEAD = { apikey: GAL_KEY, Authorization: 'Bearer ' + GAL_KEY, 'Content
 const GAL_VIEW = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/toad_gallery_public';
 const GAL_RPC  = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_vote';
 const GAL_FLAG = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_report';
+const GAL_DEL  = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_gallery_remove';
 const VOTER_KEY = 'toados.voter', VOTED_KEY = 'toados.voted';
 
 /* A random name for this browser. It is not an identity and does not pretend
@@ -1057,7 +1161,7 @@ const rememberVote = (id, mine) => {
 
 async function galleryFetch(order) {
   const by = order === 'top' ? 'votes.desc,created_at.desc' : 'created_at.desc';
-  const r = await fetch(GAL_VIEW + '?select=id,name,image,created_at,votes&order=' + by + '&limit=60', { headers: GAL_HEAD });
+  const r = await fetch(GAL_VIEW + '?select=id,name,image,created_at,votes,owner_who&order=' + by + '&limit=60', { headers: GAL_HEAD });
   if (!r.ok) throw new Error('HTTP ' + r.status);
   return r.json();
 }
@@ -1157,6 +1261,17 @@ async function galleryReport(id) {
   return r.json();
 }
 
+/* Only the browser that put a picture up can take it down. The check lives in
+   the function, not here -- this is just the button. */
+async function galleryRemove(id) {
+  const r = await fetch(GAL_DEL, {
+    method: 'POST', headers: GAL_HEAD,
+    body: JSON.stringify({ pic: id, owner: voterToken() }),
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
 async function galleryVote(id) {
   const r = await fetch(GAL_RPC, {
     method: 'POST', headers: GAL_HEAD,
@@ -1170,7 +1285,7 @@ async function gallerySubmit(name, dataUrl) {
   const r = await fetch(GAL_URL, {
     method: 'POST',
     headers: { ...GAL_HEAD, Prefer: 'return=minimal' },
-    body: JSON.stringify({ name: name.slice(0, 24), image: dataUrl }),
+    body: JSON.stringify({ name: name.slice(0, 24), image: dataUrl, owner: voterToken() }),
   });
   if (!r.ok) throw new Error(await r.text());
 }
@@ -1186,6 +1301,13 @@ function mountChat(win) {
   const log = $('#chLog', win), body = $('#chBody', win), nick = $('#chNick', win);
   const who = $('#chWho', win), state = $('#chState', win), emos = $('#chEmos', win);
   let lastId = 0, timer = null, dead = false, mine = null, faces = {};
+  /* Sending calls poll straight away so the line shows without waiting for the
+     tick. That used to leave the scheduled poll running as well, so two
+     fetches went out holding the same lastId and both appended the same rows --
+     and every send added another chain on top. One chain, one at a time, and
+     ids remembered as a last line of defence. */
+  let polling = false;
+  const seen = new Set();
 
   try { nick.value = localStorage.getItem(NICK_KEY) || ''; } catch (e) {}
   nick.addEventListener('change', () => {
@@ -1285,7 +1407,9 @@ function mountChat(win) {
   nick.addEventListener('change', () => refreshList());
 
   async function poll(first) {
-    if (dead) return;
+    if (dead || polling) return;
+    polling = true;
+    clearTimeout(timer);
     try {
       if (first) {
         const cfg = await chatOpen();
@@ -1302,7 +1426,12 @@ function mountChat(win) {
          so refresh the set whenever somebody unfamiliar turns up. */
       if (rows.some(r => !r.is_bot && !faces[r.who])) faces = await chatFaces();
       const stuck = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
-      rows.forEach(r => { add(r); lastId = Math.max(lastId, r.id); });
+      rows.forEach(r => {
+        lastId = Math.max(lastId, r.id);
+        if (seen.has(r.id)) return;
+        seen.add(r.id);
+        add(r);
+      });
       if (rows.length && stuck) log.scrollTop = log.scrollHeight;
       state.textContent = '';
       /* Counting distinct voices in the last five minutes is honest and cheap;
@@ -1311,6 +1440,8 @@ function mountChat(win) {
     } catch (e) {
       state.textContent = 'offline';
     }
+    polling = false;
+    clearTimeout(timer);
     timer = setTimeout(() => poll(false), document.hidden ? 15000 : 3000);
   }
 
@@ -1348,6 +1479,19 @@ function mountChat(win) {
 
   $('#chSend', win).addEventListener('click', () => send());
   $('#chNudge', win).addEventListener('click', () => send(NUDGE));
+
+  /* The round trip in one press: opens Paint with its Send-to-chat button
+     already lit, so the way back is obvious rather than something to find. */
+  $('#chDraw', win).addEventListener('click', () => {
+    const rec = WM.launch('paint');
+    if (!rec || !rec.el) return;
+    const back = $('#ptToChat', rec.el);
+    if (back) {
+      back.classList.add('is-waiting');
+      back.scrollIntoView({ block: 'nearest' });
+    }
+    toast('Draw something, then press Send to chat.');
+  });
   body.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   });
@@ -1367,7 +1511,8 @@ function mountGallery(win) {
   const view  = $('#galView', win),  big   = $('#galBig', win);
   const title = $('#galTitle', win), meta  = $('#galMeta', win);
   const voteBtn = $('#galVote', win), sortBtn = $('#galSort', win);
-  let order = 'new', rows = [], open = null;
+  let order = 'new', rows = [], open = null, mine = null;
+  chatWhoAmI().then(w => { mine = w; });        // same hash the room uses
 
   const label = (n, mine) => `${mine ? '\u2665' : '\u2661'} ${n}`;
   const when = iso => {
@@ -1417,6 +1562,11 @@ function mountGallery(win) {
     title.textContent = row.name;                 // textContent: a stranger's text
     meta.textContent = 'Drawn in Toad Paint \u00b7 ' + when(row.created_at);
     paintVote(voteBtn, row);
+    /* Your own picture offers a way out; everyone else's offers a way to
+       complain. Never both. */
+    const isMine = !!(mine && row.owner_who && row.owner_who === mine);
+    $('#galMine', win).hidden = !isMine;
+    $('#galFlag', win).hidden = isMine;
     view.hidden = false;
     Sound.blip(760, .04, .03);
   }
@@ -1424,6 +1574,18 @@ function mountGallery(win) {
 
   $('#galBack', win).addEventListener('click', back);
   $('#galFlag', win).addEventListener('click', () => { if (open) report(open); });
+  $('#galMine', win).addEventListener('click', async () => {
+    if (!open) return;
+    if (!confirm('Take your drawing off the wall?\n\nThis cannot be undone.')) return;
+    try {
+      await galleryRemove(open.id);
+      toast('Taken down.');
+      back();
+      render();
+    } catch (e) {
+      toast('That did not come down.');
+    }
+  });
   voteBtn.addEventListener('click', () => {
     if (!open) return;
     const tile = grid.querySelector(`[data-id="${open.id}"] .gal__tilevote`);
@@ -1875,6 +2037,7 @@ function mountPaint(win) {
     for (let i = 0; i < 40 && !(rec && rec.el && rec.el.__chatSend); i++) await new Promise(r => setTimeout(r, 100));
     if (rec && rec.el && rec.el.__chatSend) {
       await rec.el.__chatSend('', exportUnder(CHAT_MAX));
+      btn.classList.remove('is-waiting');
       toast('Sent to the room.');
     } else {
       toast('Could not reach the room.');
