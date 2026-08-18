@@ -1103,33 +1103,83 @@ input, textarea{ cursor:text; }
 @media (prefers-reduced-motion:reduce){ .xp-btn.is-waiting { animation:none; } }
 
 /* ── the room, over Toad Run ──────────────────────────────────
-   Bottom left, dimmed until touched. No panel behind it: a box would
-   sit on the game, a shadow on the letters does not. */
+   A panel rather than loose text: it has to read as part of the game's
+   furniture, not as something spilled onto it. Frosted, thin-bordered,
+   and quiet until you look at it. */
 .gchat {
-  position:absolute; left:14px; bottom:14px; z-index:5;
-  width:min(320px, 42vw); display:flex; flex-direction:column; gap:5px;
-  opacity:.62; transition:opacity .18s ease;
-  font:12px/1.45 "Segoe UI", -apple-system, Helvetica, Arial, sans-serif;
+  position:absolute; left:18px; bottom:18px; z-index:5;
+  width:min(392px, 34vw); display:flex; flex-direction:column;
+  border-radius:10px; overflow:hidden;
+  background:rgba(12,18,14,.42);
+  border:1px solid rgba(255,255,255,.14);
+  box-shadow:0 6px 26px rgba(0,0,0,.42);
+  backdrop-filter:blur(9px) saturate(1.1);
+  -webkit-backdrop-filter:blur(9px) saturate(1.1);
+  opacity:.72; transition:opacity .2s ease, background .2s ease, border-color .2s ease;
+  font:13px/1.5 "Segoe UI", -apple-system, Helvetica, Arial, sans-serif;
 }
-.gchat:hover, .gchat.is-live { opacity:1; }
-.gchat__log { display:flex; flex-direction:column; gap:2px; pointer-events:none; }
+.gchat:hover, .gchat.is-live { opacity:1; background:rgba(12,18,14,.62); border-color:rgba(116,193,59,.4); }
+
+.gchat__head {
+  display:flex; align-items:center; gap:7px; padding:7px 8px 6px 11px;
+  border-bottom:1px solid rgba(255,255,255,.1);
+  background:linear-gradient(rgba(255,255,255,.06), transparent);
+}
+.gchat__dot { width:7px; height:7px; border-radius:50%; background:#74c13b;
+              box-shadow:0 0 7px rgba(116,193,59,.9); flex:none; }
+.gchat__room { font-size:11.5px; font-weight:700; letter-spacing:.05em;
+               text-transform:uppercase; color:rgba(255,255,255,.94); }
+.gchat__count { font-size:11px; color:rgba(255,255,255,.55); margin-left:auto; }
+.gchat__fold {
+  flex:none; width:20px; height:20px; margin-left:6px; padding:0; line-height:1;
+  font:600 14px/1 inherit; color:rgba(255,255,255,.6); cursor:pointer;
+  background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.14); border-radius:5px;
+}
+.gchat__fold:hover { color:#fff; background:rgba(255,255,255,.16); }
+
+.gchat__log {
+  display:flex; flex-direction:column; gap:3px;
+  padding:9px 11px; max-height:34vh; overflow-y:auto; pointer-events:none;
+  /* the oldest lines fade out rather than being cut off */
+  -webkit-mask-image:linear-gradient(transparent, #000 22px);
+          mask-image:linear-gradient(transparent, #000 22px);
+}
+.gchat__log::-webkit-scrollbar { width:0; }
 .gchat__line {
-  margin:0; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.95), 0 0 6px rgba(0,0,0,.7);
-  overflow-wrap:anywhere;
+  margin:0; color:rgba(255,255,255,.93); overflow-wrap:anywhere;
+  text-shadow:0 1px 2px rgba(0,0,0,.6);
+  animation:gchat-in .22s ease-out;
 }
-.gchat__line b { color:#9fe06a; margin-right:5px; }
+@keyframes gchat-in { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
+.gchat__line b { color:#9fe06a; margin-right:6px; font-weight:600; }
 .gchat__line.is-me b { color:#ffd166; }
-.gchat__line.is-toad b { color:#74c13b; }
-.gchat__line.is-toad { font-style:italic; }
-.gchat__face { width:15px; height:15px; vertical-align:-3px; margin-right:4px;
-               border:1px solid rgba(255,255,255,.6); object-fit:cover; }
+.gchat__line.is-toad { color:rgba(255,255,255,.82); font-style:italic; }
+.gchat__line.is-toad b { color:#74c13b; font-style:normal; }
+.gchat__face { width:16px; height:16px; vertical-align:-3px; margin-right:5px;
+               border-radius:3px; border:1px solid rgba(255,255,255,.45); object-fit:cover; }
+
+.gchat__row { display:flex; align-items:center; gap:6px; padding:0 8px 8px; }
 .gchat__in {
-  width:100%; font:inherit; padding:4px 8px; color:#fff;
-  background:rgba(0,0,0,.34); border:1px solid rgba(255,255,255,.22); border-radius:4px;
-  outline:none;
+  flex:1; min-width:0; font:inherit; padding:6px 10px; color:#fff;
+  background:rgba(0,0,0,.34); border:1px solid rgba(255,255,255,.16);
+  border-radius:7px; outline:none; transition:border-color .15s ease, background .15s ease;
 }
-.gchat__in::placeholder { color:rgba(255,255,255,.5); }
-.gchat.is-live .gchat__in { background:rgba(0,0,0,.62); border-color:#74c13b; }
-@media (max-width:640px){ .gchat { width:min(240px,58vw); left:8px; bottom:8px; font-size:11px; } }
+.gchat__in::placeholder { color:rgba(255,255,255,.45); }
+.gchat.is-live .gchat__in { background:rgba(0,0,0,.55); border-color:#74c13b; }
+.gchat__hint {
+  flex:none; font-size:10px; letter-spacing:.04em; color:rgba(255,255,255,.42);
+  border:1px solid rgba(255,255,255,.16); border-radius:4px; padding:2px 5px;
+}
+.gchat.is-live .gchat__hint { color:rgba(255,255,255,.75); border-color:rgba(116,193,59,.5); }
+
+/* folded: the header alone, still showing that the room is alive */
+.gchat.is-folded .gchat__log, .gchat.is-folded .gchat__row { display:none; }
+.gchat.is-folded { width:auto; }
+
+@media (prefers-reduced-motion:reduce){ .gchat__line { animation:none; } }
+@media (max-width:640px){
+  .gchat { left:10px; bottom:10px; width:min(280px,64vw); font-size:12px; border-radius:8px; }
+  .gchat__log { max-height:26vh; }
+}
 /* class rules that set display beat the hidden attribute — say it once, loudly */
 .ie__tb[hidden], .xp-btn[hidden], .gal__flag[hidden] { display:none !important; }
