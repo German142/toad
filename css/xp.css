@@ -1067,3 +1067,12 @@ input, textarea{ cursor:text; }
   .msn__nick { margin-left:0; width:100%; }
   .msn__nick input { flex:1; width:auto; }
 }
+
+/* the guardian speaks in its own voice, and drawings sit under the line */
+.msn__line.is-toad { background:#f0f9ec; border-left:3px solid #74c13b; padding:3px 7px; margin-left:-3px; }
+.msn__line.is-toad b { color:#2c5a14; }
+.msn__pic-msg { display:block; margin:4px 0 2px; max-width:230px; max-height:170px;
+                border:1px solid #7c879a; background:#fff; cursor:pointer; }
+.msn__face { width:24px; height:24px; float:left; margin:1px 6px 2px 0;
+             border:1px solid #7c879a; background:#fff; object-fit:cover; }
+.msn__line.has-face { overflow:hidden; min-height:26px; }
