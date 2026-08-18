@@ -1068,7 +1068,10 @@ async function galleryFetch(order) {
    about it. Messages are read by polling rather than a socket: it needs no
    library, no second origin in the security policy, and at this size the
    difference is invisible. */
-const CHAT_URL  = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/toad_chat';
+const CHAT_URL  = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/toad_chat_public';
+const CHAT_AVA  = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/toad_avatars';
+const CHAT_ME   = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_whoami';
+const CHAT_SETA = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_set_avatar';
 const CHAT_CFG  = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/toad_chat_config';
 const CHAT_RPC  = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_say';
 const NICK_KEY  = 'toados.nick';
@@ -1076,25 +1079,49 @@ const NUDGE = '*nudge*';
 
 async function chatFetch(sinceId) {
   const q = sinceId ? '&id=gt.' + sinceId : '';
-  const r = await fetch(CHAT_URL + '?select=id,created_at,nick,body,speaker&order=id.asc&limit=80' + q, { headers: GAL_HEAD });
+  const r = await fetch(CHAT_URL + '?select=id,created_at,nick,body,who,image,is_bot&order=id.asc&limit=80' + q, { headers: GAL_HEAD });
   if (!r.ok) throw new Error('HTTP ' + r.status);
   return r.json();
 }
+/* Faces are keyed by the same one-way hash the messages carry, so the room can
+   show who drew what without anyone learning anybody's token. */
+async function chatFaces() {
+  const r = await fetch(CHAT_AVA + '?select=who,avatar', { headers: GAL_HEAD });
+  if (!r.ok) return {};
+  const out = {};
+  (await r.json()).forEach(p => { out[p.who] = p.avatar; });
+  return out;
+}
+async function chatWhoAmI() {
+  const r = await fetch(CHAT_ME, { method: 'POST', headers: GAL_HEAD,
+    body: JSON.stringify({ speaker: voterToken() }) });
+  if (!r.ok) return null;
+  return (await r.json()).who;
+}
+async function chatSetFace(dataUrl) {
+  const r = await fetch(CHAT_SETA, { method: 'POST', headers: GAL_HEAD,
+    body: JSON.stringify({ speaker: voterToken(), avatar: dataUrl }) });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
 async function chatOpen() {
   const r = await fetch(CHAT_CFG + '?select=enabled,notice&limit=1', { headers: GAL_HEAD });
   if (!r.ok) return { enabled: true };
   return (await r.json())[0] || { enabled: true };
 }
-async function chatSay(nick, body) {
+async function chatSay(nick, body, image) {
   const r = await fetch(CHAT_RPC, {
     method: 'POST', headers: GAL_HEAD,
-    body: JSON.stringify({ nick, body, speaker: voterToken() }),
+    body: JSON.stringify({ nick, body, speaker: voterToken(), image: image || null }),
   });
   if (!r.ok) {
     let m = 'that did not go through';
     try { m = (JSON.parse(await r.text()).message) || m; } catch (e) {}
     throw new Error(m);
   }
+  /* A swear is not an error: the toad answers in the room, so the message has
+     to come back rather than blow up, or the reply would be rolled back. */
   return r.json();
 }
 
@@ -1130,9 +1157,14 @@ async function gallerySubmit(name, dataUrl) {
 const CHAT_EMOS = ['\uD83D\uDC38', '\uD83C\uDF7A', '\uD83D\uDCC8', '\uD83D\uDCC9', '\uD83D\uDD25', '\uD83D\uDC8E', '\uD83E\uDD1D', '\uD83D\uDE02', '\uD83D\uDE2D', '\uD83D\uDC40', '\uD83C\uDF19', '\u2764\uFE0F'];
 
 function mountChat(win) {
+  /* Reopening a window calls mount again, which would leave a second polling
+     loop and a second set of listeners behind. Set up once, then only focus. */
+  if (win.__chatReady) { $('#chBody', win).focus(); return; }
+  win.__chatReady = true;
+
   const log = $('#chLog', win), body = $('#chBody', win), nick = $('#chNick', win);
   const who = $('#chWho', win), state = $('#chState', win), emos = $('#chEmos', win);
-  let lastId = 0, timer = null, dead = false, mine = voterToken();
+  let lastId = 0, timer = null, dead = false, mine = null, faces = {};
 
   try { nick.value = localStorage.getItem(NICK_KEY) || ''; } catch (e) {}
   nick.addEventListener('change', () => {
@@ -1162,14 +1194,36 @@ function mountChat(win) {
       return;
     }
     const l = document.createElement('p');
-    l.className = 'msn__line' + (row.speaker === mine ? ' is-me' : '');
+    l.className = 'msn__line'
+      + (row.is_bot ? ' is-toad' : '')
+      + (!row.is_bot && row.who === mine ? ' is-me' : '');
+    /* A face if they drew one, the toad's own if it is the guardian speaking,
+       and nothing at all otherwise — an empty square would be worse. */
+    const face = row.is_bot ? '/assets/brand/logo.png' : faces[row.who];
+    if (face) {
+      const f = document.createElement('img');
+      f.className = 'msn__face'; f.alt = ''; f.loading = 'lazy';
+      f.src = face;                                  // src, never innerHTML
+      l.appendChild(f);
+      l.classList.add('has-face');
+    }
     const n = document.createElement('b');
-    n.textContent = row.nick + ' says:';                      // textContent, always
+    n.textContent = row.is_bot ? '\uD83D\uDC38 Toad:' : row.nick + ' says:';   // textContent, always
     const t = document.createElement('i');
     t.textContent = stamp(row.created_at);
     const txt = document.createElement('span');
     txt.textContent = row.body;
     l.append(n, t, txt);
+    /* Drawings arrive as data, and go in through src -- never innerHTML.
+       There is no file picker anywhere in here, so nothing but a Toad Paint
+       canvas can ever reach this element. */
+    if (row.image) {
+      const pic = document.createElement('img');
+      pic.className = 'msn__pic-msg'; pic.alt = 'a drawing'; pic.loading = 'lazy';
+      pic.src = row.image;
+      pic.addEventListener('click', () => { WM.launch('gallery'); });
+      l.appendChild(pic);
+    }
     log.appendChild(l);
   }
 
@@ -1185,7 +1239,11 @@ function mountChat(win) {
           dead = true; return;
         }
       }
+      if (first) { mine = await chatWhoAmI(); faces = await chatFaces(); }
       const rows = await chatFetch(lastId);
+      /* A face that arrives after its owner has spoken should still show up,
+         so refresh the set whenever somebody unfamiliar turns up. */
+      if (rows.some(r => !r.is_bot && !faces[r.who])) faces = await chatFaces();
       const stuck = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
       rows.forEach(r => { add(r); lastId = Math.max(lastId, r.id); });
       if (rows.length && stuck) log.scrollTop = log.scrollHeight;
@@ -1200,24 +1258,37 @@ function mountChat(win) {
     timer = setTimeout(() => poll(false), document.hidden ? 15000 : 3000);
   }
 
-  async function send(text) {
+  const REFUSALS = {
+    'no links in here': 'No links in here — that rule is what keeps this room safe.',
+    'slow down': 'Slow down a moment.',
+    'that name is taken': 'That name belongs to the toad. Pick another.',
+    'drawings only': 'Only drawings from Toad Paint can go in here.',
+    'too many drawings': 'That is enough drawings for now.',
+    'the room is closed': 'The room is closed.',
+    'message out of range': 'Too long, or nothing to say.',
+  };
+
+  async function send(text, image) {
     const n = nick.value.trim();
     if (!n) { toast('Pick a name first — the box on the right.'); nick.focus(); return; }
     const t = (text !== undefined ? text : body.value).trim();
-    if (!t) return;
+    if (!t && !image) return;
     $('#chSend', win).disabled = true;
     try {
-      await chatSay(n, t);
-      if (text === undefined) body.value = '';
+      const res = await chatSay(n, t, image);
+      if (res && res.ok === false && res.reason === 'language') {
+        toast('The toad had a word with you about that.');
+      } else if (text === undefined) {
+        body.value = '';
+      }
       await poll(false);                    // show it without waiting for the tick
     } catch (e) {
-      toast(e.message === 'no links in here'
-        ? 'No links in here — that rule is what keeps this room safe.'
-        : e.message === 'slow down' ? 'Slow down a moment.' : 'That did not go through.');
+      toast(REFUSALS[e.message] || 'That did not go through.');
     }
     $('#chSend', win).disabled = false;
     body.focus();
   }
+  win.__chatSend = send;                    // Toad Paint hands its canvas over here
 
   $('#chSend', win).addEventListener('click', () => send());
   $('#chNudge', win).addEventListener('click', () => send(NUDGE));
@@ -1705,17 +1776,55 @@ function mountPaint(win) {
      meme photo is the other way round -- half a megabyte as PNG, which the
      gallery refuses. So try the lossless one first and only fall back when it
      will not fit, stepping the quality down rather than rejecting the drawing. */
-  const GAL_MAX = 255000;
-  function exportForGallery() {
+  const GAL_MAX = 255000, CHAT_MAX = 128000;
+  function exportUnder(max) {
     const flat = flatten();
     const png = flat.toDataURL('image/png');
-    if (png.length <= GAL_MAX) return png;
-    for (const q of [0.85, 0.7, 0.55, 0.4]) {
+    if (png.length <= max) return png;
+    for (const q of [0.85, 0.7, 0.55, 0.4, 0.3]) {
       const jpg = flat.toDataURL('image/jpeg', q);
-      if (jpg.length <= GAL_MAX) return jpg;
+      if (jpg.length <= max) return jpg;
     }
-    return flat.toDataURL('image/jpeg', 0.3);
+    return flat.toDataURL('image/jpeg', 0.25);
   }
+  const exportForGallery = () => exportUnder(GAL_MAX);
+
+  /* Avatars are drawings too. Scaled here rather than in CSS so a 560x360
+     canvas does not travel to everyone at full size just to be shown at 24px. */
+  $('#ptFace', win).addEventListener('click', async () => {
+    const src = flatten();
+    const box = document.createElement('canvas');
+    box.width = box.height = 96;
+    const g = box.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, 96, 96);
+    const side = Math.min(src.width, src.height);
+    g.drawImage(src, (src.width - side) / 2, (src.height - side) / 2, side, side, 0, 0, 96, 96);
+    let url = box.toDataURL('image/png');
+    if (url.length > 23000) url = box.toDataURL('image/jpeg', 0.75);
+    try {
+      await chatSetFace(url);
+      toast('That is your face in the room now. Draw a new one whenever you like.');
+    } catch (e) {
+      toast('That did not stick. Try something simpler.');
+    }
+  });
+
+  /* Paint is the only place a picture can enter the room from. The chat has
+     no file picker at all, which is exactly the rule: drawings, nothing else. */
+  $('#ptToChat', win).addEventListener('click', async () => {
+    const rec = WM.launch('chat');            // returns {el, id, …}, not the element
+    const btn = $('#ptToChat', win);
+    btn.disabled = true;
+    /* mountChat has to have run before its send function exists. */
+    for (let i = 0; i < 40 && !(rec && rec.el && rec.el.__chatSend); i++) await new Promise(r => setTimeout(r, 100));
+    if (rec && rec.el && rec.el.__chatSend) {
+      await rec.el.__chatSend('', exportUnder(CHAT_MAX));
+      toast('Sent to the room.');
+    } else {
+      toast('Could not reach the room.');
+    }
+    btn.disabled = false;
+  });
 
   $('#ptSubmit', win).addEventListener('click', async () => {
     const name = (prompt('Sign it — what name should appear under your picture?') || '').trim();
