@@ -240,7 +240,9 @@ function login() {
 const APPS = {
   explorer:   { title:'Toad Explorer',         icon:'ic-explorer',   tpl:'app-explorer',   w:1000, h:660, status:'Done — the pond', mount:mountExplorer },
   canal88:    { title:'Canal 88 Player',       icon:'ic-canal88',    tpl:'app-canal88',    w:660,  h:620, status:`${CHANNELS.length} tapes in the playlist`, mount:mountPlayer },
-  hoppytoad:  { title:'Hoppy Toad',            icon:'/hoppytoad/assets/icon-192.png', tpl:'app-hoppytoad', w:430, h:700, status:'One button. He jumps.', mount:mountHoppy },
+  /* Toad Run is not a window — it launches full screen, like a PC game.
+     `fullscreen` short-circuits the window manager below. */
+  toadrun:    { title:'Toad Run',              icon:'/toadrun/assets/icon-192.png', fullscreen:true },
   /* title and status count the array rather than hardcoding it, so adding a
      meme is still a one-line change */
   memes:      { title:`Evidence — ${MEMES.length} objects`, icon:'ic-memes', tpl:'app-memes', w:640, h:500, status:`${MEMES.length} objects`, mount:mountMemes },
@@ -264,7 +266,7 @@ const DESKTOP_ICONS = [
   { app:'explorer',   label:'Toad Explorer' },
   { app:'canal88',    label:'Canal 88' },
   { link:'tiktok',    label:'TikTok',        icon:'ic-tiktok' },
-  { app:'hoppytoad',  label:'Hoppy Toad' },
+  { app:'toadrun',    label:'Toad Run' },
   { app:'chart',      label:'Live Chart' },
   { app:'memes',      label:'Evidence' },
   { app:'tokenomics', label:'Tokenomics.xls' },
@@ -286,6 +288,8 @@ const WM = {
   launch(id, opts = {}) {
     const app = APPS[id];
     if (!app) return;
+
+    if (app.fullscreen) { launchGame(id); return; }
 
     if (this.open.has(id)) {
       const w = this.open.get(id);
@@ -452,6 +456,46 @@ const WM = {
   },
 };
 
+/* ══════════════════════════════════════════════════════════════
+   FULL-SCREEN GAME LAUNCHER
+   Toad Run does not open in a window. Double-click and the desktop
+   hands the whole screen over — a black launch frame, then the game
+   — exactly how a PC game took over the machine. The game quits
+   itself back to the desktop with a postMessage.
+   ══════════════════════════════════════════════════════════════ */
+let gameFS = null;
+function launchGame(id) {
+  if (gameFS) return;                       // already running
+  closeStart();
+  Sound.blip(760, .05, .035);
+
+  gameFS = document.createElement('div');
+  gameFS.className = 'gamefs';
+  gameFS.innerHTML = `<iframe class="gamefs__frame" title="Toad Run" allow="fullscreen"></iframe>`;
+  document.body.appendChild(gameFS);
+
+  /* black first, then the frame fades in — the "launch" beat */
+  requestAnimationFrame(() => gameFS.classList.add('is-on'));
+  const frame = gameFS.querySelector('iframe');
+  frame.src = '/toadrun/';                  // trailing slash matters, as ever
+  setTimeout(() => { try { frame.contentWindow.focus(); } catch (e) {} }, 300);
+
+  /* real browser fullscreen while we still hold the user gesture */
+  gameFS.requestFullscreen?.().catch(() => { /* denied is fine — the overlay is full-bleed anyway */ });
+}
+function quitGame() {
+  if (!gameFS) return;
+  if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+  gameFS.classList.remove('is-on');
+  const g = gameFS;
+  gameFS = null;
+  setTimeout(() => g.remove(), 350);
+  Sound.croak();
+}
+addEventListener('message', e => {
+  if (e.origin === location.origin && e.data && e.data.type === 'toadrun:quit') quitGame();
+});
+
 /* turn any data-open / data-cfg inside a window into working links */
 function wireLinks(root) {
   $$('[data-open]', root).forEach(el => {
@@ -521,7 +565,7 @@ function buildStartMenu() {
   left.append(
     item('ic-explorer', 'Toad Explorer', 'The whole story', () => WM.launch('explorer')),
     item('ic-canal88',  'Canal 88 Player', `${CHANNELS.length} tapes`, () => WM.launch('canal88')),
-    item('/hoppytoad/assets/icon-192.png', 'Hoppy Toad', 'One button. He jumps.', () => WM.launch('hoppytoad')),
+    item('/toadrun/assets/icon-192.png', 'Toad Run', 'Full screen. He runs.', () => WM.launch('toadrun')),
     item('ic-memes',    'Evidence', `${MEMES.length} memes`, () => WM.launch('memes')),
     sep(),
     item('ic-tokenomics', 'Tokenomics.xls', '', () => WM.launch('tokenomics')),
@@ -664,17 +708,6 @@ function toast(msg) {
 /* ══════════════════════════════════════════════════════════════
    7 · APP MOUNTS
    ══════════════════════════════════════════════════════════════ */
-/* The game is its own self-contained page, so it drops in as a frame. Loading
-   it only on open means the desktop never pays for it until asked, and closing
-   the window tears the whole thing down — no stray loop left running. */
-function mountHoppy(win) {
-  const frame = $('#hoppyFrame', win);
-  /* trailing slash matters: the game's assets are relative to its folder */
-  if (!frame.src) frame.src = '/hoppytoad/';
-  /* hand it the keyboard so SPACE works without hunting for a click */
-  setTimeout(() => { try { frame.contentWindow.focus(); } catch (e) {} }, 220);
-}
-
 function mountExplorer(win) {
   $$('.ie__tb[data-nav]', win).forEach(b => b.addEventListener('click', () => Sound.blip(600, .04, .03)));
 }

@@ -16,10 +16,12 @@ Zero build step. Zero dependencies. Static HTML, CSS and vanilla JS, deployed st
 index.html            markup + every app's content, as <template> blocks
 css/xp.css            the Luna design system — window chrome, taskbar, start menu, apps
 js/main.js            boot sequence, window manager, app logic. CONFIG lives at the top
-assets/video/         6 tapes; the player streams them on demand
+toadrun/              TOAD RUN, the full-screen 3D endless runner (see below)
+assets/video/         14 tapes; the player streams them on demand
 assets/posters/       a still frame per tape
 assets/memes/         36 memes, web-optimised · thumb/ holds the small copies
 assets/brand/         logo, favicons, cursors, link-preview cover
+_tools/               local asset pipeline (image generation) — needs .env, never deployed
 vercel.json           caching + security headers
 ```
 
@@ -28,8 +30,8 @@ vercel.json           caching + security headers
 | App | What it is | Holds |
 |---|---|---|
 | **Toad Explorer** | Internet Explorer 6 | The origin story, the facts table, every outbound link |
-| **Canal 88 Player** | Windows Media Player | 6 tapes with a playlist, seek bar and channel switching |
-| **Hoppy Toad** | Game | A one-button jumping game, framed from `/hoppytoad/` |
+| **Canal 88 Player** | Windows Media Player | 14 tapes with a playlist, seek bar and channel switching |
+| **Toad Run** | Full-screen 3D game | A 3-lane endless runner; launches over the whole desktop |
 | **Live Chart** | Embedded browser | Dexscreener's own embed, framed in a window instead of a new tab |
 | **Evidence** | Explorer folder | 36 memes as files; double-click opens **Toad Viewer** |
 | **Tokenomics.xls** | Spreadsheet | Supply, tax, revoked authorities |
@@ -127,45 +129,46 @@ actually loads (198 KB instead of 1.2 MB). Replace both, keeping the names.
 - On phones every window opens full-bleed and the taskbar collapses to icons; the desktop
   metaphor still holds but nothing needs dragging.
 
-## Hoppy Toad
+## Toad Run
 
-A standalone game in [`hoppytoad/`](hoppytoad/) — three files and an assets folder, no
-libraries, no CDN. It runs on its own (`hoppytoad/index.html`, works from `file://` too) and
-is framed into the desktop as an app.
+A full-screen 3D endless runner in [`toadrun/`](toadrun/) — Three.js (vendored into
+`toadrun/lib/`, no CDN, per the CSP), one `game.js`, and HTML overlays styled as Windows XP
+dialogs. It replaces the old Hoppy Toad window: double-clicking the desktop icon does **not**
+open a window — the desktop hands the whole screen over (black launch frame → browser
+fullscreen → the game's own XP-style boot screen), the way a PC game took over the machine.
+The game quits itself back to the desktop with a `postMessage` (`toadrun:quit`); served
+standalone at `/toadrun/` the quit button navigates to `/` instead.
 
-He does not flap. He **runs along the bank and jumps**: one hop off the ground, a second in
-mid-air. The ground is solid — landing is safe, only the reeds end a run.
+The design is a Subway-Surfers-style 3-lane runner: swipe/arrows to change lane, jump, roll.
+The toad is not a 3D model — it is a **billboarded sprite**, nine plush-render frames
+generated with gpt-image-1 from `assets/brand/logo2.jpg` (the originals live in
+`_source/toadrun_char/`, the game ships 512×768 WebP). The 2005 internet frog runs in the
+foreground, forever chasing the original; when you crash, he finally catches up. That's the
+whole lore, on screen at all times.
 
-**The numbers are measured, not guessed.** A single hop rises ~119 px, a double at the apex
-~238 px, and a double mashed as early as the game allows ~165 px. Low reeds stop at 64 px so
-one hop always clears them; tall reeds start at 134 px — above a single hop — and stop at
-158 px, under even the worst-timed double. Every reed is therefore always clearable; the
-variety is in which hop it takes.
+The world is the wallpaper's pond country — pastel low-poly hills, reeds, mushrooms, lily
+ponds — with pump.fun engraved into it: pill collectibles, green-candle obstacles (a green
+candle only goes up; you change lanes), a striped pump.fun arch, "FUD" banners you roll
+under, and roadside billboards textured with the site's own memes from `assets/memes/`.
+Every decal that isn't a meme is drawn on a canvas at boot — no texture downloads.
 
-Two things that came out of playtesting rather than planning:
+Mechanics carried over from the old game because they were right: fixed 1/60 s timestep with
+an accumulator, clamped frame deltas so a backgrounded tab can't teleport the toad, pooled
+obstacles/pills (nothing allocates during play), hard patterns get their extra run-up **in
+front** of them, and localStorage behind try/catch. Pills are a persistent currency: the
+shop sells power-up levels (magnet / ×2 / invincibility) and skins — skins recolor only the
+green-dominant pixels of the sprite, so the red shirt and yellow overalls survive. Three
+daily quests pay out pills. A "Holder Perks" slot in the shop is reserved for future wallet
+verification.
 
-- **Reeds are thin (26 px).** Clearing one is not about peak height but about staying above
-  it for the whole crossing — hitbox width plus reed width. A fat obstacle is far harder than
-  a tall one, and 46 px reeds were quietly unclearable.
-- **Tall reeds get their extra run-up in front of them, not behind.** Putting the spacing
-  after meant the approach depended on whatever came before, and a tall reed could arrive
-  while you were still airborne from the last one.
+`?debug=1` exposes a read-only `window.RunDebug` for automated play-testing.
 
-There is also a 5-tick lock between the two hops: mashing both at once used to fire the
-second before the first had gained any height, wasting it.
+### Regenerating the art
 
-Other details: fixed 1/60 s timestep with an accumulator (identical physics on a 60 Hz and a
-144 Hz panel), frame deltas clamped so a backgrounded tab cannot teleport the toad through a
-reed, obstacles pooled so the array never grows, hitbox anchored to the sprite's feet and
-about 60% of the visible body, `imageSmoothingEnabled = false` everywhere so rotation stays
-pixellated instead of turning to mush, and best score in `localStorage` behind a try/catch
-because `file://` throws.
-
-The sprite sheet is the supplied `toad_spritesheet.png` — five 240×384 cells, picked by
-vertical speed. The icon is cut from the idle cell's head, not drawn fresh.
-
-`?debug=1` exposes a read-only `window.HoppyDebug` for automated play-testing. It is not
-wired up otherwise.
+`_tools/genimage.mjs` calls gpt-image-1 with `OPENAI_API_KEY` from `.env` (gitignored — the
+key never ships; `_tools/` is local pipeline only). Character frames were generated with the
+logo as identity reference plus the first accepted frame as style reference, then exported to
+WebP via sharp. See the git history of this section for the exact prompts.
 
 ## The link preview
 
@@ -222,14 +225,14 @@ build command and output directory empty.
 - **`frame-ancestors 'self'` and `X-Frame-Options: SAMEORIGIN`** — the site cannot be framed
   by anyone else. On a page whose job is handing out a contract address, clickjacking is the
   realistic attack: iframe the real site, overlay a fake address, let the victim copy it.
-  `'self'` rather than `'none'` because the desktop frames its own `/hoppytoad/`.
+  `'self'` rather than `'none'` because the desktop frames its own `/toadrun/`.
 - **`frame-src` allowlists only Dexscreener**, so no other embed can be introduced.
 - **`connect-src 'self'`** — nothing here talks to a third-party API, and now nothing can.
 - **`object-src 'none'`, `base-uri 'self'`, `form-action 'none'`** — no plugins, no base
   hijacking, no form posting anywhere.
 
 `script-src` keeps `'unsafe-inline'` deliberately. The base-URL guard in
-`hoppytoad/index.html` has to be inline — it runs before the stylesheet, and an external file
+`toadrun/index.html` has to be inline — it runs before the stylesheet, and an external file
 could not be fetched when the base is exactly what is broken. A hash would work but silently
 breaks the guard whenever line endings change on checkout, and this site has no user input,
 no query parameters read into the DOM and no dynamic data, so there is no injection path for
@@ -244,8 +247,8 @@ Two things about `vercel.json` worth knowing before editing it:
 - **It is validated against a schema, and unknown top-level keys fail the build.** JSON has no
   comments, and a `"//"` key is not a valid escape hatch — it will be rejected outright.
   Explanations go here in the README instead.
-- **Do not add `cleanUrls` or `trailingSlash`.** Together they redirect `/hoppytoad/` down to
-  `/hoppytoad`, and at that URL every relative path inside the game resolves against the site
+- **Do not add `cleanUrls` or `trailingSlash`.** Together they redirect `/toadrun/` down to
+  `/toadrun`, and at that URL every relative path inside the game resolves against the site
   root: `style.css` becomes `/style.css` and 404s. The game now defends itself against this
   with a base-URL guard in its `<head>`, but there is no reason to reintroduce the problem —
   nothing here wants pretty URLs.
