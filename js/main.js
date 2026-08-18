@@ -33,6 +33,9 @@ const CHANNELS = [
   { ch:'99', name:'NIGHT SHIFT',  tag:'Grinding',     file:'night_shift',            poster:'poster-night_shift.jpg'      },
   { ch:'100',name:'COLD OPEN',    tag:'Ice',          file:'cold_open',              poster:'poster-cold_open.jpg'        },
   { ch:'101',name:'LAST CALL',    tag:'Aftermath',    file:'last_call',              poster:'poster-last_call.jpg'        },
+  { ch:'102',name:'THE MONTAGE',  tag:'Steps at dawn',file:'rocky_toad',             poster:'poster-rocky_toad.jpg'       },
+  { ch:'103',name:'GOD CANDLE',   tag:'Ascension',    file:'god_candle',             poster:'poster-god_candle.jpg'       },
+  { ch:'104',name:'THE LADDER',   tag:'WrestleMania', file:'wwe_return',             poster:'poster-wwe_return.jpg'       },
 ];
 
 /* ── the archive ── */
