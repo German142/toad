@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<title>TOAD RUN</title>
+<meta name="description" content="TOAD RUN — a full-screen 3D endless runner. The first Pepe outruns the copy, since 1988." />
+<meta name="theme-color" content="#0b3d2e" />
+
+<script>
+/* Some hosts serve a folder's index page without its trailing slash —
+   at that URL every relative href below resolves against the SITE ROOT
+   instead of this folder. Putting the base back here, before anything
+   is parsed, makes the game independent of how it is served.
+   (Same guard the previous game shipped with — it earned its keep.) */
+(function () {
+  var p = location.pathname;
+  if (p.charAt(p.length - 1) !== '/' && p.lastIndexOf('.') <= p.lastIndexOf('/')) {
+    var b = document.createElement('base');
+    b.href = p + '/';
+    document.head.appendChild(b);
+  }
+})();
+</script>
+
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icon-32.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png" />
+<link rel="apple-touch-icon" href="assets/icon-192.png" />
+<link rel="stylesheet" href="style.css" />
+
+<script type="importmap">{ "imports": { "three": "./lib/three.module.min.js" } }</script>
+</head>
+<body>
+
+<!-- The game owns the whole viewport: it is launched full-screen from the
+     ToadOS desktop like a PC game, or served standalone at /toadrun/. -->
+<div class="tr" id="tr">
+
+  <div class="tr__stage" id="trStage"><!-- WebGL canvas lands here --></div>
+  <div class="vig" aria-hidden="true"></div>
+
+  <!-- ── HUD (only during play) ─────────────────────────────── -->
+  <div class="hud" id="hud" hidden>
+    <div class="hud__left">
+      <b id="hudScore">0</b>
+      <span id="hudDist">0m</span>
+    </div>
+    <div class="hud__right">
+      <span class="hud__pills">💊 <b id="hudPills">0</b></span>
+      <button class="hud__btn" id="hudPause" aria-label="Pause">❚❚</button>
+    </div>
+    <div class="hud__power" id="hudPower" hidden><i id="hudPowerIco"></i><span class="hud__powerbar"><i id="hudPowerFill"></i></span></div>
+  </div>
+
+  <!-- ── boot / loading — the way a PC game starts ───────────── -->
+  <div class="scr scr--load" id="scrLoad">
+    <div class="load__box">
+      <img src="assets/icon-192.png" alt="" class="load__logo" />
+      <h1 class="load__title">TOAD <span>RUN</span></h1>
+      <p class="load__sub">EL TOAD PEPE · SINCE 1988</p>
+      <div class="load__bar"><i></i><i></i><i></i></div>
+      <p class="load__hint" id="loadHint">Loading swamp…</p>
+    </div>
+    <p class="load__legal">Canal 88 Interactive · Archivo Nacional</p>
+  </div>
+
+  <!-- ── main menu — live scene blurred behind it ────────────── -->
+  <div class="scr scr--menu" id="scrMenu" hidden>
+    <div class="menu">
+      <img class="menu__toad" src="assets/char/toad_idle_front.webp" alt="El Toad Pepe" />
+      <h1 class="menu__title">TOAD <span>RUN</span></h1>
+      <p class="menu__sub">the first pepe outruns the copy · since 1988</p>
+      <p class="menu__best">★ BEST <b id="menuBest">0</b> &nbsp;·&nbsp; 💊 <b id="menuPills">0</b></p>
+      <button class="xpb xpb--play" id="btnPlay">PLAY</button>
+      <p class="menu__keys">◀ ▶ change lane &nbsp;·&nbsp; ▲ jump &nbsp;·&nbsp; ▼ roll</p>
+      <div class="menu__row">
+        <button class="xpb" id="btnShop">💊 SHOP</button>
+        <button class="xpb" id="btnQuit1">⏻ QUIT</button>
+      </div>
+      <div class="quests" id="quests"></div>
+    </div>
+    <p class="menu__ver">v1.0 · ToadOS</p>
+  </div>
+
+  <!-- ── shop ────────────────────────────────────────────────── -->
+  <div class="scr scr--shop" id="scrShop" hidden>
+    <div class="dlgx dlgx--shop">
+      <div class="dlgx__bar"><img src="assets/icon-32.png" alt=""><span>Toad Shop</span>
+        <span class="dlgx__btns"><b id="shopX">✕</b></span></div>
+      <div class="dlgx__body">
+        <p class="shop__bal">💊 <b id="shopPills">0</b> pills</p>
+        <h3 class="shop__h">POWER-UPS <small>longer per level</small></h3>
+        <div class="shop__list" id="shopPowers"></div>
+        <h3 class="shop__h">SKINS</h3>
+        <div class="shop__list" id="shopSkins"></div>
+        <div class="shop__holder">
+          <b>🔒 HOLDER PERKS</b>
+          <span>verify your $TOAD — exclusive skins &amp; multiplier. Coming soon.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── pause ───────────────────────────────────────────────── -->
+  <div class="scr scr--pause" id="scrPause" hidden>
+    <div class="dlgx">
+      <div class="dlgx__bar"><img src="assets/icon-32.png" alt=""><span>Paused</span></div>
+      <div class="dlgx__body dlgx__body--c">
+        <p class="pause__msg">The toad waits. The frog does not.</p>
+        <button class="xpb xpb--play" id="btnResume">RESUME</button>
+        <div class="menu__row">
+          <button class="xpb" id="btnPauseMenu">MAIN MENU</button>
+          <button class="xpb" id="btnQuit2">⏻ QUIT</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── game over — an XP error has occurred ────────────────── -->
+  <div class="scr scr--over" id="scrOver" hidden>
+    <div class="dlgx dlgx--err">
+      <div class="dlgx__bar dlgx__bar--red"><span class="dlgx__ico">✕</span><span>Caught by the copy</span></div>
+      <div class="dlgx__body dlgx__body--c">
+        <p class="over__score">SCORE <b id="overScore">0</b></p>
+        <p class="over__best" id="overBestLine">BEST <b id="overBest">0</b></p>
+        <p class="over__new" id="overNew" hidden>★ NEW PERSONAL BEST ★</p>
+        <div class="over__stats">
+          <div><b id="overDist">0m</b><span>distance</span></div>
+          <div><b id="overPills">0</b><span>pills</span></div>
+          <div><b id="overClose">0</b><span>close calls</span></div>
+        </div>
+        <button class="xpb xpb--play" id="btnAgain">RUN AGAIN</button>
+        <div class="menu__row">
+          <a class="xpb" id="btnShare" href="#" target="_blank" rel="noopener">𝕏 SHARE</a>
+          <button class="xpb" id="btnOverMenu">MENU</button>
+          <button class="xpb" id="btnQuit3">⏻ QUIT</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── corner controls ─────────────────────────────────────── -->
+  <div class="corner">
+    <button class="corner__btn" id="btnSfx" aria-label="Toggle sound">🔊</button>
+    <button class="corner__btn" id="btnMusic" aria-label="Toggle music">♪</button>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+</div>
+
+<script type="module" src="game.js"></script>
+</body>
+</html>

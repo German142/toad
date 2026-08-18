@@ -12,3 +12,7 @@ desktop.ini
 node_modules/
 .vercel
 *.log
+
+# secrets — the OpenAI key lives here; never commit, never deploy
+.env
+.env.*
