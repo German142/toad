@@ -1240,6 +1240,7 @@ const CHAT_QUEUE = SB_REST + 'rpc/toad_moderation';
 const CHAT_MOD   = SB_REST + 'rpc/toad_moderate';
 const WALL_MOD   = SB_REST + 'rpc/toad_gallery_moderate';
 const CHAT_BAN   = SB_REST + 'rpc/toad_ban_for';
+const WALL_PURGE = SB_REST + 'rpc/toad_gallery_purge';
 const CHAT_WHOS = SB_REST + (IS_PROBE ? 'toad_online_probe' : 'toad_online');
 const CHAT_CFG  = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/toad_chat_config';
 const CHAT_RPC  = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_say';
@@ -1338,6 +1339,15 @@ async function wallModerate(id, show) {
   if (!r.ok) throw new Error(await r.text());
   return r.json();
 }
+/* For good. Only reachable from the desk, where the picture is on screen
+   while the decision is being made. */
+async function wallPurge(id) {
+  const r = await fetch(WALL_PURGE, { method: 'POST', headers: GAL_HEAD,
+    body: JSON.stringify({ pic: id, speaker: voterToken() }) });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
 async function chatBanFor(id) {
   const r = await fetch(CHAT_BAN, { method: 'POST', headers: GAL_HEAD,
     body: JSON.stringify({ msg: id, speaker: voterToken() }) });
@@ -2079,7 +2089,11 @@ function mountChat(win) {
           image: row.image, title: row.name,
           meta: `${row.reports} report${row.reports === 1 ? '' : 's'} \u00b7 ${row.hidden ? 'taken down' : 'still up'} \u00b7 ${when(row.created_at)}`,
           actions: row.hidden
-            ? [['Put it back', 'xp-btn--go', () => wallModerate(row.id, true)]]
+            ? [['Put it back', 'xp-btn--go', () => wallModerate(row.id, true)],
+               ['Delete for good', 'xp-btn--danger', () => {
+                 if (!confirm('Delete this drawing for good?\n\nThere is no copy of it anywhere. This one really cannot be undone.')) return;
+                 return wallPurge(row.id);
+               }]]
             : [['Take it down', '', () => wallModerate(row.id, false)],
                ['Clear the reports', 'xp-btn--go', () => wallModerate(row.id, true)]],
         }));
