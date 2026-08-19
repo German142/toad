@@ -248,7 +248,11 @@ const APPS = {
   toadrun:    { title:'Toad Run',              icon:'/toadrun/assets/icon-192.png', fullscreen:true },
   /* title and status count the array rather than hardcoding it, so adding a
      meme is still a one-line change */
-  paint:      { title:'Toad Paint',            icon:'ic-paint',      tpl:'app-paint',      w:640,  h:560, status:'Untitled - Toad Paint', mount:mountPaint },
+  /* 640 was the width before the stamps row, the mirror switch and three more
+     buttons arrived; at that size the footer breaks into three rows. Windows
+     are clamped to the screen anyway (Math.min against the viewport), so a
+     roomier default costs nothing on a small one. */
+  paint:      { title:'Toad Paint',            icon:'ic-paint',      tpl:'app-paint',      w:880,  h:640, status:'Untitled - Toad Paint', mount:mountPaint },
   terminal:   { title:'Toad Terminal',            icon:'ic-terminal',   tpl:'app-terminal',   w:720,  h:620, status:'Live from Dexscreener', mount:mountTerminal },
   chat:       { title:'Toad Messenger',          icon:'ic-chat',       tpl:'app-chat',       w:520,  h:560, status:'The Pond', mount:mountChat },
   gallery:    { title:'Toad Gallery',          icon:'ic-gallery',    tpl:'app-gallery',    w:700,  h:520, status:'Drawings from the pond', mount:mountGallery },
@@ -1072,6 +1076,7 @@ const ASSIST_LINES = [
    without anybody having to announce it anywhere. Keep the oldest few and
    drop the rest, or the news stops being news. */
 const NEWS_LINES = [
+  'New: Toad Terminal. Price, holders, and what is being pushed on Solana \u2014 without leaving the desktop.',
   'New: the messenger keeps listening after you close it \u2014 a message pops up in the corner, like 2003.',
   'New: Toad Messenger. One public room, like it is 2003. No links, no DMs, no seed phrases.',
   'New: the public gallery. Anything drawn in Toad Paint can go up on the wall.',
@@ -1611,16 +1616,6 @@ const price = n => {
 };
 
 function mountTerminal(win) {
-  /* Not open yet. Everybody gets the sign; the owner gets the window. The
-     check is the same one the moderation desk uses, and it decides before
-     anything is fetched -- so a visitor's click costs no API call either. */
-  chatAmAdmin().then(ok => {
-    if (!ok) return;
-    $('#tmSoon', win).hidden = true;
-    $('#tmBody', win).hidden = false;
-    start();
-  });
-
   const statsEl = $('#tmStats', win), pairEl = $('#tmPair', win);
   const discEl = $('#tmDisc', win), liveEl = $('#tmLive', win), countEl = $('#tmDiscCount', win);
   let timer = null, busy = false;
@@ -1796,16 +1791,16 @@ function mountTerminal(win) {
     busy = false;
   }
 
-  function start() {
+  (function start() {
     $('#tmReload', win).addEventListener('click', () => { Sound.blip(700, .04, .03); refresh(); });
     refresh();
-    timer = setInterval(() => { if (!document.hidden) refresh(); }, 45000);
+    timer = setInterval(() => { if (!document.hidden) refresh(); }, 60000);
 
     const obs = new MutationObserver(() => {
       if (!win.isConnected) { clearInterval(timer); obs.disconnect(); }
     });
     obs.observe(document.body, { childList: true });
-  }
+  })();
 }
 
 function mountChat(win) {

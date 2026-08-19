@@ -77,7 +77,12 @@ export default async function handler(req, res) {
         return { address, amount, share: total ? +(amount / total * 100).toFixed(2) : null };
       });
 
-    res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=600');
+    /* Ten minutes at the edge. A holder count does not move meaningfully
+       faster than that, and this is the one call that costs money: one walk
+       is roughly twenty paged requests, so a busy page without a long cache
+       would spend the month's credits in a week. Six walks an hour, however
+       many people are watching. */
+    res.setHeader('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=3600');
     return res.status(200).json({
       mint: MINT,
       supply: total,
