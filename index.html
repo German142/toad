@@ -202,6 +202,17 @@
 
   <!-- gallery: framed pictures on a wall -->
   <!-- messenger: two speech bubbles, one green -->
+  <!-- terminal: a screen with a rising line -->
+  <symbol id="ic-terminal" viewBox="0 0 48 48">
+    <rect x="3" y="7" width="42" height="30" rx="3" fill="#1b2733" stroke="#0d141c" stroke-width="1.6"/>
+    <rect x="6" y="10" width="36" height="24" rx="1.5" fill="#0b1b12"/>
+    <path d="M9 29l7-6 5 4 6-9 5 6 6-9" fill="none" stroke="#74c13b" stroke-width="2.2"
+          stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="38" cy="14" r="2" fill="#f5c518"/>
+    <rect x="17" y="38" width="14" height="3" fill="#8d99a8"/>
+    <rect x="12" y="41" width="24" height="3" rx="1.5" fill="#5a6470"/>
+  </symbol>
+
   <symbol id="ic-chat" viewBox="0 0 48 48">
     <path d="M6 9h27a3 3 0 0 1 3 3v13a3 3 0 0 1-3 3H18l-8 6v-6H6a3 3 0 0 1-3-3V12a3 3 0 0 1 3-3z"
           fill="#74c13b" stroke="#2c5a14" stroke-width="1.6" stroke-linejoin="round"/>
@@ -744,6 +755,31 @@ CREDITS
 
 
 <!-- ─────────── gallery ─────────── -->
+<template id="app-terminal">
+  <div class="term">
+    <div class="term__bar">
+      <span class="term__live" id="tmLive">connecting…</span>
+      <button class="ie__tb" id="tmReload" type="button">↻ Refresh</button>
+    </div>
+
+    <section class="term__own">
+      <h3>$TOAD</h3>
+      <div class="term__grid" id="tmStats"></div>
+      <p class="term__pair" id="tmPair"></p>
+    </section>
+
+    <section class="term__disc">
+      <h3>Trending on Solana <small id="tmDiscCount"></small></h3>
+      <p class="term__note">
+        What Dexscreener is showing as boosted right now. <b>A boost is paid for</b> — it means
+        somebody spent money to be seen here, not that the token is any good.
+        Nothing in this list is a recommendation, and no link goes anywhere but Dexscreener.
+      </p>
+      <div class="term__list" id="tmDisc"></div>
+    </section>
+  </div>
+</template>
+
 <template id="app-chat">
   <div class="msn">
     <div class="msn__head">
