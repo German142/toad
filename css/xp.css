@@ -1374,3 +1374,6 @@ input, textarea{ cursor:text; }
   .msn__emo { font-size:14px; padding:1px 2px; }
   .msn__compose { padding:5px 6px; }
 }
+/* a job, not a message: it waits to be dealt with */
+.msnpop.is-desk { border-color:#c8a415; background:linear-gradient(#fffdf3,#fdf3d4 55%,#f7e9b8); }
+.msnpop.is-desk .msnpop__txt b { color:#7a5f00; }
