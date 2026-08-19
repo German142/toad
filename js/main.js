@@ -36,6 +36,7 @@ const CHANNELS = [
   { ch:'102',name:'THE MONTAGE',  tag:'Steps at dawn',file:'rocky_toad',             poster:'poster-rocky_toad.jpg'       },
   { ch:'103',name:'GOD CANDLE',   tag:'Ascension',    file:'god_candle',             poster:'poster-god_candle.jpg'       },
   { ch:'104',name:'THE LADDER',   tag:'WrestleMania', file:'wwe_return',             poster:'poster-wwe_return.jpg'       },
+  { ch:'105',name:'THE WALL',     tag:'Street promo', file:'pumpfun_promo',          poster:'poster-pumpfun_promo.jpg'    },
 ];
 
 /* ── the archive ── */
