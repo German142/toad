@@ -1437,15 +1437,81 @@ async function gallerySubmit(name, dataUrl) {
 const TOASTER = {
   lastId: 0, started: false, timer: null, polling: false, faces: {}, mine: null,
 
+  waiting: 0, told: 0, admin: false,
+
   start() {
     if (this.started) return;
     this.started = true;
+
+    /* A drawing waiting for a decision is no use sitting behind a button in a
+       window that is closed. The corner already runs on its own, so it does
+       the watching too -- but only for the one browser allowed to decide. */
+    chatAmAdmin().then(ok => {
+      this.admin = ok;
+      if (ok) { this.checkDesk(); setInterval(() => this.checkDesk(), 60000); }
+    });
     /* Start from the present: a returning visitor should not be met by a
        stack of everything said while they were away. */
     chatFetch(0).then(rows => {
       rows.forEach(r => { this.lastId = Math.max(this.lastId, r.id); });
     }).catch(() => {}).finally(() => this.tick());
     chatWhoAmI().then(w => { this.mine = w; });
+  },
+
+  async checkDesk() {
+    if (!this.admin || document.hidden) return;
+    let desk;
+    try { desk = await chatPending(); } catch (e) { return; }
+    const n = (desk.waiting || []).length;
+    this.waiting = n;
+
+    /* Say it when it changes and there is something to say -- not every
+       minute, and not once for each drawing in the same batch. */
+    if (n > 0 && n !== this.told) {
+      this.told = n;
+      this.deskPop(n);
+    }
+    if (n === 0) this.told = 0;
+  },
+
+  deskPop(n) {
+    const old = $('#msnpop');
+    if (old) old.remove();
+    const box = document.createElement('aside');
+    box.className = 'msnpop is-desk'; box.id = 'msnpop';
+    box.setAttribute('role', 'status');
+
+    const img = document.createElement('img');
+    img.className = 'msnpop__face'; img.alt = ''; img.src = '/assets/brand/logo.png';
+
+    const txt = document.createElement('div');
+    txt.className = 'msnpop__txt';
+    const who = document.createElement('b');
+    who.textContent = n === 1 ? 'A drawing is waiting' : n + ' drawings are waiting';
+    const line = document.createElement('span');
+    line.textContent = 'Nobody can see it until you let it in.';
+    txt.append(who, line);
+
+    const shut = document.createElement('button');
+    shut.className = 'msnpop__x'; shut.type = 'button';
+    shut.setAttribute('aria-label', 'Dismiss');
+    shut.textContent = '\u2715';
+    shut.addEventListener('click', e => { e.stopPropagation(); box.remove(); });
+
+    box.append(img, txt, shut);
+    box.addEventListener('click', () => {
+      box.remove();
+      const rec = WM.launch('chat');
+      /* Open the desk itself, not just the room -- the point of the tap is
+         the queue. */
+      setTimeout(() => { const q = rec && rec.el && $('#chQueue', rec.el); if (q) q.click(); }, 600);
+    });
+    document.body.appendChild(box);
+    requestAnimationFrame(() => box.classList.add('is-up'));
+    Sound.blip(660, .06, .04);
+    setTimeout(() => Sound.blip(880, .06, .035), 120);
+    /* This one stays until it is dealt with or dismissed. It is a job, not
+       a message. */
   },
 
   visible() {
