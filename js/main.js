@@ -884,7 +884,7 @@ function boot() {
      window that just opened, and covers its header while explaining a
      desktop the reader cannot see. The icons and the start button are in
      plain sight anyway; being in the way is worse than being absent. */
-  if (innerWidth > 640) {
+  if (ROOMY()) {
     setTimeout(() => assistant(`Welcome, fren. Everything lives behind the start button — or double-click an icon. Canal 88 has ${CHANNELS.length} tapes.`), 1400);
   }
   scheduleAssistant();
@@ -1116,7 +1116,7 @@ function scheduleAssistant(first) {
        its own does not sit beside anything -- it sits on top of whatever you
        were reading or typing. The assistant keeps its chatter for desktops.
        Toasts still come through: those are answers to something you did. */
-    const roomy = innerWidth > 640;
+    const roomy = ROOMY();
     if (roomy && clip && clip.hidden && !document.hidden) {
       /* The first thing it says is always news; after that it alternates, so
          the jokes still get a turn. */
@@ -1199,6 +1199,12 @@ const GAL_RPC  = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_vote
 const GAL_FLAG = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_report';
 const GAL_DEL  = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_gallery_remove';
 const VOTER_KEY = 'toados.voter', VOTED_KEY = 'toados.voted';
+/* One breakpoint, owned by the stylesheet. It was written as innerWidth > 640
+   in two places, which is the same number as `@media (max-width:640px)` until
+   somebody changes one of them -- and then the balloon and the layout quietly
+   disagree about what a phone is. Asking the stylesheet cannot drift.
+   (Spotted by Sourcery on PR #25.) */
+const ROOMY = () => !matchMedia('(max-width: 640px)').matches;
 
 /* A random name for this browser. It is not an identity and does not pretend
    to be one -- it stops the same person counting twice by accident, which is
