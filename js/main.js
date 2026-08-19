@@ -1072,7 +1072,6 @@ const ASSIST_LINES = [
    without anybody having to announce it anywhere. Keep the oldest few and
    drop the rest, or the news stops being news. */
 const NEWS_LINES = [
-  'New: Toad Terminal \u2014 the numbers, live, without leaving the desktop.',
   'New: the messenger keeps listening after you close it \u2014 a message pops up in the corner, like 2003.',
   'New: Toad Messenger. One public room, like it is 2003. No links, no DMs, no seed phrases.',
   'New: the public gallery. Anything drawn in Toad Paint can go up on the wall.',
@@ -1531,6 +1530,16 @@ const price = n => {
 };
 
 function mountTerminal(win) {
+  /* Not open yet. Everybody gets the sign; the owner gets the window. The
+     check is the same one the moderation desk uses, and it decides before
+     anything is fetched -- so a visitor's click costs no API call either. */
+  chatAmAdmin().then(ok => {
+    if (!ok) return;
+    $('#tmSoon', win).hidden = true;
+    $('#tmBody', win).hidden = false;
+    start();
+  });
+
   const statsEl = $('#tmStats', win), pairEl = $('#tmPair', win);
   const discEl = $('#tmDisc', win), liveEl = $('#tmLive', win), countEl = $('#tmDiscCount', win);
   let timer = null, busy = false;
@@ -1575,7 +1584,9 @@ function mountTerminal(win) {
   async function loadHolders() {
     const statsEl = $('#tmHoldStats', win), listEl = $('#tmHoldList', win), note = $('#tmHoldNote', win);
     const r = await fetch('/api/holders');
-    const d = await r.json();
+    let d;
+    try { d = await r.json(); }
+    catch (e) { d = { error: 'no endpoint here', keyed: false }; }
 
     statsEl.innerHTML = ''; listEl.innerHTML = '';
     if (d.error) {
@@ -1688,27 +1699,32 @@ function mountTerminal(win) {
     busy = true;
     liveEl.textContent = 'loading…';
     liveEl.className = 'term__live';
-    try {
-      await loadOwn();
-      await loadHolders();
-      await loadDiscovery();
-      liveEl.textContent = 'live \u00b7 ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      liveEl.className = 'term__live is-on';
-    } catch (e) {
-      liveEl.textContent = 'could not reach Dexscreener';
+    /* Three independent sections, so one that cannot answer does not take the
+       other two with it -- which is exactly what happened when the holders
+       endpoint was missing and the discovery list silently stayed empty. */
+    const parts = await Promise.allSettled([loadOwn(), loadHolders(), loadDiscovery()]);
+    const failed = parts.filter(p => p.status === 'rejected').length;
+    if (failed === parts.length) {
+      liveEl.textContent = 'nothing is answering';
       liveEl.className = 'term__live is-off';
+    } else {
+      liveEl.textContent = (failed ? 'partly live \u00b7 ' : 'live \u00b7 ')
+        + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      liveEl.className = 'term__live ' + (failed ? 'is-part' : 'is-on');
     }
     busy = false;
   }
 
-  $('#tmReload', win).addEventListener('click', () => { Sound.blip(700, .04, .03); refresh(); });
-  refresh();
-  timer = setInterval(() => { if (!document.hidden) refresh(); }, 45000);
+  function start() {
+    $('#tmReload', win).addEventListener('click', () => { Sound.blip(700, .04, .03); refresh(); });
+    refresh();
+    timer = setInterval(() => { if (!document.hidden) refresh(); }, 45000);
 
-  const obs = new MutationObserver(() => {
-    if (!win.isConnected) { clearInterval(timer); obs.disconnect(); }
-  });
-  obs.observe(document.body, { childList: true });
+    const obs = new MutationObserver(() => {
+      if (!win.isConnected) { clearInterval(timer); obs.disconnect(); }
+    });
+    obs.observe(document.body, { childList: true });
+  }
 }
 
 function mountChat(win) {

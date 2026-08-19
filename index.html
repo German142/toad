@@ -756,7 +756,15 @@ CREDITS
 
 <!-- ─────────── gallery ─────────── -->
 <template id="app-terminal">
-  <div class="term">
+  <div class="soon" id="tmSoon">
+    <div class="soon__sign">
+      <span class="soon__cone">⚠</span>
+      <b>Under construction</b>
+      <p>Toad Terminal opens soon. Live numbers, who holds what, and what is being pushed on Solana.</p>
+      <span class="soon__strip"></span>
+    </div>
+  </div>
+  <div class="term" id="tmBody" hidden>
     <div class="term__bar">
       <span class="term__live" id="tmLive">connecting…</span>
       <button class="ie__tb" id="tmReload" type="button">↻ Refresh</button>

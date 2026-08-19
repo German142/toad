@@ -1322,3 +1322,24 @@ input, textarea{ cursor:text; }
 .term__bar2 { flex:1; min-width:60px; max-width:180px; height:6px; border-radius:3px;
               background:#eef1f4; overflow:hidden; }
 .term__bar2 i { display:block; height:100%; background:#74c13b; }
+
+/* ── not open yet ────────────────────────────────────────────── */
+.soon { display:grid; place-items:center; height:100%; padding:22px;
+        background:linear-gradient(#f7f8fa,#eceff3); }
+.soon__sign { max-width:340px; text-align:center; padding:20px 22px 0;
+              background:#fff; border:1px solid #dfe3e8; border-radius:8px;
+              box-shadow:0 2px 10px rgba(0,0,0,.06); overflow:hidden; }
+.soon__cone { font-size:30px; line-height:1; color:#e0a80f; }
+.soon__sign b { display:block; margin:9px 0 6px; font-size:15px; color:#12365e; }
+.soon__sign p { margin:0 0 18px; font-size:12.5px; line-height:1.55; color:#5d646e; }
+.soon__strip { display:block; height:9px; margin:0 -22px;
+               background:repeating-linear-gradient(45deg,#f5c518 0 10px,#2b2b2b 10px 20px); }
+
+/* ── the hidden attribute means hidden ───────────────────────────
+   Any class that sets display beats [hidden], and this has now bitten three
+   separate times: an invisible overlay swallowing every click, Delete
+   showing on other people's drawings, and a window meant to be closed
+   showing its contents. Said once, at the end, for everything. */
+[hidden] { display: none !important; }
+.term__live.is-part { color:#b07d00; }
+.term__live.is-part::before { content:'●'; margin-right:4px; }
