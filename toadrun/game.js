@@ -1,9 +1,10 @@
 /* ══════════════════════════════════════════════════════════════
    TOAD RUN
    A full-screen 3-lane endless hopper in Three.js. The plush toad
-   (the original, 1988) hops three trails of stepping stones across
-   the pond; the internet frog (2005, seventeen years late) chases
-   and never quite catches up — until he does.
+   (the original, 1988) hops three pebble trails along the riverbank —
+   water to his left, dry sand to his right; the internet frog (2005,
+   seventeen years late) chases and never quite catches up — until
+   he does.
 
    Everything lives in this one module: scene, world recycling,
    obstacles, pills, power-ups, sound, quests, shop and UI. The
@@ -192,7 +193,7 @@ addEventListener('orientationchange', resize);
 resize();
 
 /* lights — bright hemisphere + one shadow-casting sun over the track */
-scene.add(new THREE.HemisphereLight(0xd9ecff, 0x51829b, 1.1));   // blue sky above, water bounce below
+scene.add(new THREE.HemisphereLight(0xd9ecff, 0x9b8a68, 1.1));   // blue sky above, warm sand bounce below
 const sun = new THREE.DirectionalLight(0xffd9a8, 1.45);          // warm late-afternoon sun
 sun.position.set(14, 24, -10);
 sun.castShadow = true;
@@ -260,9 +261,9 @@ const waterBump = canvasTex(256, 256, (x, w, h) => {
 });
 waterBump.colorSpace = THREE.NoColorSpace;
 waterBump.wrapS = waterBump.wrapT = THREE.RepeatWrapping;
-waterBump.repeat.set(48, 48);                 // over the 400-unit pond: one tile ≈ 8.3 units
-const waterBumpNear = waterBump.clone();      // the shoal strip needs its own UV transform
-waterBumpNear.repeat.set(1, 38);              // 8.6 × 320 units — same tile size as the pond
+waterBump.repeat.set(24, 48);                 // over the 200×400 river: one tile ≈ 8.3 units
+const waterBumpNear = waterBump.clone();      // the wet-sand strip needs its own UV transform
+waterBumpNear.repeat.set(1, 38);              // 8.6 × 320 units — same tile size as the river
 waterBumpNear.needsUpdate = true;
 
 const glowTex = canvasTex(128, 128, (x, w, h) => {
@@ -315,6 +316,36 @@ const canalTex = canvasTex(512, 384, (x, w, h) => {
   x.fillText('ON AIR SINCE 1988', w / 2, 330);
 });
 
+/* ── city facades — a tileable window grid is what turns a grey box
+      into a building. A few windows glow warm even in daylight ── */
+function facadeTex(body, glass, dark, lit) {
+  const t = canvasTex(128, 256, (x, w, h) => {
+    x.fillStyle = body; x.fillRect(0, 0, w, h);
+    const cols = 6, rows = 13, ww = w / cols, wh = h / rows;
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+      const v = Math.random();
+      x.fillStyle = v < lit ? '#ffe9a8' : v < .6 ? glass : dark;
+      x.fillRect(c * ww + 2, r * wh + 3, ww - 4, wh - 6);
+    }
+  });
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  return t;
+}
+const FACADES = [
+  facadeTex('#b6bcc2', '#b8d6ea', '#31414d', .04),   // concrete + glass
+  facadeTex('#8f9aa4', '#a8cadf', '#2a3844', .03),   // steel grey
+  facadeTex('#c8bfa8', '#c2dcec', '#3d4a52', .06),   // sandstone
+  facadeTex('#5e7486', '#9cc4de', '#243440', .02),   // blue glass tower
+  facadeTex('#a89486', '#bad4e6', '#38434b', .08),   // brick
+];
+
+/* a strip of portholes — wraps the hulls and decks of the fleet */
+const portholeTex = canvasTex(256, 32, (x, w, h) => {
+  x.fillStyle = '#f4f6f8'; x.fillRect(0, 0, w, h);
+  x.fillStyle = '#2a3844';
+  for (let i = 8; i < w - 14; i += 18) { x.beginPath(); x.roundRect(i, 11, 12, 10, 3); x.fill(); }
+});
+
 /* power-up cube faces */
 const powerTex = {
   magnet: canvasTex(128, 128, (x) => { x.fillStyle = '#d8453a'; x.beginPath(); x.roundRect(0, 0, 128, 128, 26); x.fill(); x.font = '72px serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('🧲', 64, 68); }),
@@ -328,7 +359,11 @@ const powerTex = {
 const M = {
   /* phong + animated bump = moving sun glints on the surface */
   water: new THREE.MeshPhongMaterial({ color: 0x2e6f9e, specular: 0x9fcce8, shininess: 90, bumpMap: waterBump, bumpScale: .11 }),
-  shallow: new THREE.MeshPhongMaterial({ color: 0x54a4ba, specular: 0xaad8e4, shininess: 70, bumpMap: waterBumpNear, bumpScale: .08 }),
+  /* damp sand glistens faintly; its bump scrolls with the world so the
+     ground itself reads as moving under the toad */
+  wetsand: new THREE.MeshPhongMaterial({ color: 0xb3a078, specular: 0x8fa8b8, shininess: 16, bumpMap: waterBumpNear, bumpScale: .045 }),
+  sand: new THREE.MeshLambertMaterial({ color: 0xd9c69c }),
+  sandEdge: new THREE.MeshLambertMaterial({ color: 0xa8946c }),
   /* flat shading = faceted rock faces that catch the light */
   stone: new THREE.MeshStandardMaterial({ color: 0xa8a89a, roughness: .88, metalness: 0, flatShading: true }),
   stoneDark: new THREE.MeshStandardMaterial({ color: 0x7e8676, roughness: .92, metalness: 0, flatShading: true }),
@@ -349,6 +384,12 @@ const M = {
   candle: new THREE.MeshLambertMaterial({ color: 0x21c95e, emissive: 0x0a4d22 }),
   candleDark: new THREE.MeshLambertMaterial({ color: 0x158741 }),
   pole: new THREE.MeshLambertMaterial({ color: 0xb8b2a0 }),
+  roof: new THREE.MeshLambertMaterial({ color: 0x687078 }),
+  hullWhite: new THREE.MeshLambertMaterial({ color: 0xf4f6f8 }),
+  hullDark: new THREE.MeshLambertMaterial({ color: 0x24384a }),
+  funnelRed: new THREE.MeshLambertMaterial({ color: 0xd8453a }),
+  porthole: new THREE.MeshLambertMaterial({ map: portholeTex }),
+  skin: new THREE.MeshLambertMaterial({ color: 0xf0c8a0 }),
   wood: new THREE.MeshLambertMaterial({ color: 0x7d5f3f }),
   pillWhite: new THREE.MeshLambertMaterial({ color: 0xf5f8f2, emissive: 0x333328 }),
   pillGreen: new THREE.MeshLambertMaterial({ color: 0x35b55a, emissive: 0x0d4d20 }),
@@ -390,33 +431,39 @@ scene.background = new THREE.Color(0xe6f2fa);   // horizon tone behind the dome
   sunHalo.position.set(40, 78, -260);
   scene.add(sunHalo);
 
-  /* the pond — open water to every horizon */
-  const g = new THREE.PlaneGeometry(400, 400);
-  const ground = new THREE.Mesh(g, M.water);
+  /* the bank — dry sand underfoot, all the way inland */
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), M.sand);
   ground.rotation.x = -Math.PI / 2;
   ground.position.set(0, -0.02, -120);
   ground.receiveShadow = true;
   scene.add(ground);
 
-  /* the shoal — a paler shallow strip under the three stone trails */
-  const shoal = new THREE.Mesh(new THREE.PlaneGeometry(8.6, 320), M.shallow);
-  shoal.rotation.x = -Math.PI / 2;
-  shoal.position.set(0, -0.005, -140);
-  shoal.receiveShadow = true;
-  scene.add(shoal);
+  /* the river — water from the left edge of the bank to the horizon */
+  const river = new THREE.Mesh(new THREE.PlaneGeometry(200, 400), M.water);
+  river.rotation.x = -Math.PI / 2;
+  river.position.set(-105.5, 0.03, -120);
+  river.receiveShadow = true;
+  scene.add(river);
 
-  /* foam lines where the shoal drops into deep water */
+  /* wet sand — the darker damp strip the pebble trails are set into */
+  const wet = new THREE.Mesh(new THREE.PlaneGeometry(8.6, 320), M.wetsand);
+  wet.rotation.x = -Math.PI / 2;
+  wet.position.set(0, -0.005, -140);
+  wet.receiveShadow = true;
+  scene.add(wet);
+
+  /* damp edges where the track fades into dry sand */
   for (const sx of [-4.35, 4.35]) {
-    const edge = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 320), M.foam);
+    const edge = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 320), M.sandEdge);
     edge.rotation.x = -Math.PI / 2;
     edge.position.set(sx, 0.012, -140);
     scene.add(edge);
-    const glow = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 320),
-      new THREE.MeshBasicMaterial({ map: glowTex, color: 0xcaf0ff, transparent: true, opacity: .3, blending: THREE.AdditiveBlending, depthWrite: false }));
-    glow.rotation.x = -Math.PI / 2;
-    glow.position.set(sx, 0.014, -140);
-    scene.add(glow);
   }
+  /* foam where the river laps the bank */
+  const foamLine = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 400), M.foam);
+  foamLine.rotation.x = -Math.PI / 2;
+  foamLine.position.set(-5.4, 0.045, -120);
+  scene.add(foamLine);
 }
 
 /* flag every solid mesh in a group as a shadow caster (sprites and
@@ -540,6 +587,136 @@ function makeIslet(scale = 1) {
   g.add(tuft);
   return g;
 }
+function makeTower() {
+  const rr = (a, b) => a + Math.random() * (b - a);
+  const g = new THREE.Group();
+  const tall = Math.random() < .45;
+  const w = rr(4.5, 9), d = rr(4, 7), h = tall ? rr(16, 34) : rr(7, 14);
+  /* each tower clones a facade so its window grid tiles to its size */
+  const tex = FACADES[(Math.random() * FACADES.length) | 0].clone();
+  tex.needsUpdate = true;
+  tex.repeat.set(Math.max(1, Math.round(w / 3.2)), Math.max(1, Math.round(h / 5.5)));
+  const wall = new THREE.MeshLambertMaterial({ map: tex });
+  const mats = [wall, wall, M.roof, M.roof, wall, wall];
+  const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats);
+  body.position.y = h / 2;
+  g.add(body);
+  if (tall && Math.random() < .5) {                 // setback tier
+    const h2 = h * rr(.22, .4);
+    const top = new THREE.Mesh(new THREE.BoxGeometry(w * .62, h2, d * .62), mats);
+    top.position.y = h + h2 / 2;
+    g.add(top);
+  }
+  const toys = Math.random();
+  if (toys < .35) {                                 // antenna mast
+    const ah = rr(2, 4.5);
+    const a = new THREE.Mesh(new THREE.CylinderGeometry(.05, .09, ah, 5), M.pole);
+    a.position.set(-w * .2, h + ah / 2, 0);
+    g.add(a);
+  } else if (toys < .6) {                           // rooftop water tank
+    const tk = new THREE.Mesh(new THREE.CylinderGeometry(.55, .55, .9, 8), M.trunk);
+    tk.position.set(w * .2, h + .45, 0);
+    g.add(tk);
+  }
+  return g;
+}
+function makeBoat() {
+  const g = new THREE.Group();
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(2.6, .5, 1.1), M.wood);
+  hull.position.y = .32;
+  const bow = new THREE.Mesh(new THREE.BoxGeometry(.9, .4, .8), M.wood);
+  bow.position.set(1.6, .34, 0);
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(.05, .07, 2.6, 5), M.trunk);
+  mast.position.set(.2, 1.8, 0);
+  const cut = new THREE.Shape();
+  cut.moveTo(0, 0); cut.lineTo(0, 2); cut.lineTo(1.3, 0); cut.lineTo(0, 0);
+  const sail = new THREE.Mesh(new THREE.ShapeGeometry(cut),
+    new THREE.MeshLambertMaterial({ color: 0xf2ede0, side: THREE.DoubleSide }));
+  sail.position.set(.3, .9, 0);
+  g.add(hull, bow, mast, sail);
+  return g;
+}
+function makeDock() {
+  const g = new THREE.Group();
+  for (let i = 0; i < 3; i++) for (const pz of [-.75, .75]) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(.11, .13, 1.3, 6), M.trunk);
+    post.position.set(-i * 1.9, .3, pz);
+    g.add(post);
+  }
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(5.6, .14, 1.9), M.wood);
+  deck.position.set(-1.9, .82, 0);
+  g.add(deck);
+  return g;
+}
+const CREW_COLS = [0xe66a5a, 0x4f74d8, 0xf2d25c, 0x8cd456, 0xd88ac2].map(
+  c => new THREE.MeshLambertMaterial({ color: c }));
+function makePerson() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(.09, .2, 3, 6),
+    CREW_COLS[(Math.random() * CREW_COLS.length) | 0]);
+  body.position.y = .19;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(.075, 6, 5), M.skin);
+  head.position.y = .42;
+  g.add(body, head);
+  return g;
+}
+function makeWake(len, wid) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(len, wid),
+    new THREE.MeshBasicMaterial({ map: glowTex, color: 0xffffff, transparent: true, opacity: .3, depthWrite: false }));
+  m.rotation.x = -Math.PI / 2;
+  return m;
+}
+function makeYacht() {
+  const g = new THREE.Group();
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(4.4, .7, 1.5), M.hullWhite);
+  hull.position.y = .45;
+  const bow = new THREE.Mesh(new THREE.BoxGeometry(1.06, .7, 1.06), M.hullWhite);
+  bow.rotation.y = Math.PI / 4;
+  bow.position.set(2.2, .45, 0);
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.9, .75, 1.15), M.hullWhite);
+  cabin.position.set(.2, 1.15, 0);
+  const glass = new THREE.Mesh(new THREE.BoxGeometry(1.95, .3, 1.2), M.hullDark);
+  glass.position.set(.2, 1.28, 0);
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(.04, .05, .9, 5), M.pole);
+  mast.position.set(-.5, 1.9, 0);
+  g.add(hull, bow, cabin, glass, mast);
+  for (let i = 0; i < 2; i++) {                     // guests on the aft deck
+    const p = makePerson();
+    p.position.set(-1.2 - i * .6, .8, i ? .35 : -.3);
+    g.add(p);
+  }
+  const wake = makeWake(4.5, 1.7);
+  wake.position.set(-4, .015, 0);
+  g.add(wake);
+  return g;
+}
+function makeCruise() {
+  const sides = [M.porthole, M.porthole, M.hullWhite, M.hullWhite, M.porthole, M.porthole];
+  const g = new THREE.Group();
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(10, 1.1, 2.6), sides);
+  hull.position.y = .75;
+  const keel = new THREE.Mesh(new THREE.BoxGeometry(10.15, .3, 2.7), M.hullDark);
+  keel.position.y = .3;
+  const bow = new THREE.Mesh(new THREE.BoxGeometry(1.9, 1.1, 1.9), M.hullWhite);
+  bow.rotation.y = Math.PI / 4;
+  bow.position.set(5, .75, 0);
+  const deck1 = new THREE.Mesh(new THREE.BoxGeometry(7.6, .85, 2.2), sides);
+  deck1.position.set(-.4, 1.72, 0);
+  const deck2 = new THREE.Mesh(new THREE.BoxGeometry(5.6, .75, 1.9), sides);
+  deck2.position.set(-.6, 2.5, 0);
+  const funnel = new THREE.Mesh(new THREE.CylinderGeometry(.32, .4, 1.1, 8), M.funnelRed);
+  funnel.position.set(-2.6, 3.3, 0);
+  g.add(hull, keel, bow, deck1, deck2, funnel);
+  for (let i = 0; i < 6; i++) {                     // passengers along the top rail
+    const p = makePerson();
+    p.position.set(-2.6 + i * .85, 2.9, (i % 2) ? .6 : -.6);
+    g.add(p);
+  }
+  const wake = makeWake(8, 2.6);
+  wake.position.set(-8.2, .015, 0);
+  g.add(wake);
+  return g;
+}
 function makeBillboard(tex) {
   const g = new THREE.Group();
   for (const px of [-1.7, 1.7]) {
@@ -609,37 +786,51 @@ function makeLandmark() {
 const SIDE_PROPS = [];
 {
   const rand = (a, b) => a + Math.random() * (b - a);
-  const makers = [
-    makeReeds,
+  /* the river owns the left side, the bank owns the right — every
+     prop belongs to its side and stays there when recycled */
+  const waterMakers = [
     makeLilyCluster,
-    () => makeIslet(rand(.9, 1.8)),
     makeLotus,
     makeDriftwood,
-    makeLilyCluster,
-    makeReeds,
-    makeLotus,
     () => makeIslet(rand(.7, 1.2)),
+    makeReeds,
+    makeLilyCluster,
+    makeLotus,
+  ];
+  const landMakers = [
+    makeReeds,
+    () => makeDome(rand(1, 2), Math.random() > .5 ? M.leaf : M.leafDark),
+    makeDriftwood,
+    () => makeIslet(rand(.9, 1.6)),
+    () => makeDome(rand(.8, 1.4), M.hill),
+    makeReeds,
   ];
   for (let i = 0; i < 34; i++) {
-    const gm = castShadows(makers[i % makers.length]());
-    const side = (i % 2) ? 1 : -1;
-    gm.position.set(side * rand(6.5, 16), 0, -i * (SPAN / 34) - Math.random() * 3);
+    const side = (i % 2) ? 1 : -1;          // +1 bank, -1 river
+    const list = side < 0 ? waterMakers : landMakers;
+    const gm = castShadows(list[(i >> 1) % list.length]());
+    gm.position.set(side * rand(6.5, 16), side < 0 ? .04 : 0, -i * (SPAN / 34) - Math.random() * 3);
     gm.rotation.y = Math.random() * Math.PI * 2;
     scene.add(scrolling(gm, SPAN, (o) => {
-      const s = Math.random() > .5 ? 1 : -1;
-      o.position.x = s * rand(6.5, 16);
+      o.position.x = side * rand(6.5, 16);
       o.rotation.y = Math.random() * Math.PI * 2;
     }));
     SIDE_PROPS.push(gm);
   }
 
-  /* skyline silhouettes — static far rows */
-  for (let i = 0; i < 16; i++) {
-    const h = rand(6, 20), w = rand(4, 9);
-    const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, 3), M.skyline);
-    const side = (i % 2) ? 1 : -1;
-    b.position.set(side * rand(14, 60), h / 2 - .5, -95 - rand(0, 40));
+  /* ghost skyline — the fully-fogged far layer, inland only: nothing
+     man-made stands IN the river */
+  for (let i = 0; i < 12; i++) {
+    const h = rand(10, 26), w = rand(5, 10);
+    const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, 4), M.skyline);
+    b.position.set(rand(30, 85), h / 2 - .5, -110 - rand(0, 40));
     scene.add(b);
+  }
+  /* low green hills on the far inland horizon */
+  for (let i = 0; i < 5; i++) {
+    const hd = makeDome(rand(7, 13), M.hill);
+    hd.position.set(rand(38, 80), -1, -120 - rand(0, 40));
+    scene.add(hd);
   }
 
   /* clouds */
@@ -699,17 +890,70 @@ const SIDE_PROPS = [];
   arch.position.z = -110;
   scene.add(scrolling(arch, SPAN));
 
-  /* Canal 88 mast, far off-path */
+  /* Canal 88 mast, far inland — masts don't stand in rivers */
   const mast = makeTVMast();
   mast.position.set(26, 0, -130);
-  scene.add(scrolling(mast, SPAN * 2, (o) => { o.position.x = (Math.random() > .5 ? 1 : -1) * rand(22, 40); }));
+  scene.add(scrolling(mast, SPAN * 2, (o) => { o.position.x = rand(22, 40); }));
   SIDE_PROPS.mast = mast;
 
-  /* landmark hill with giant toad */
+  /* landmark hill with giant toad, up on the bank */
   const lm = makeLandmark();
-  lm.position.set(-42, 0, -120);
-  scene.add(scrolling(lm, SPAN * 2, (o) => { o.position.x = (Math.random() > .5 ? 1 : -1) * rand(34, 52); }));
+  lm.position.set(42, 0, -120);
+  scene.add(scrolling(lm, SPAN * 2, (o) => { o.position.x = rand(34, 52); }));
   SIDE_PROPS.landmark = lm;
+
+  /* ── the city — real towers, ALL inland on the bank side. They
+        scroll with the world (a static building 30 units out breaks
+        the motion) and surface out of the haze as the toad nears ── */
+  for (let i = 0; i < 18; i++) {
+    const tw = makeTower();
+    tw.position.set(rand(22, 62), 0, -i * (SPAN * 2 / 18) - rand(0, 9));
+    scene.add(scrolling(tw, SPAN * 2, (o) => { o.position.x = rand(22, 62); }));
+  }
+
+  /* a girder bridge crossing the river into town, once per lap */
+  const bridge = new THREE.Group();
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(66, .8, 3.4), M.roof);
+  deck.position.set(-39, 6.4, 0);
+  bridge.add(deck);
+  for (const rz of [1.6, -1.6]) {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(66, .16, .1), M.pole);
+    rail.position.set(-39, 7.25, rz);
+    bridge.add(rail);
+  }
+  for (let px = -10; px >= -68; px -= 12) {
+    const pier = new THREE.Mesh(new THREE.CylinderGeometry(.55, .7, 6.4, 8), M.pole);
+    pier.position.set(px, 3.2, 0);
+    bridge.add(pier);
+  }
+  bridge.position.set(0, 0, -210);
+  scene.add(scrolling(bridge, SPAN * 2));
+
+  /* ── the river fleet — a cruise boat full of passengers, yachts,
+        sail dinghies. They bob on the chop, make way under their own
+        power, and drag foam wakes. Bows point the way they cruise ── */
+  const fleetDefs = [
+    { mk: makeCruise, xr: [26, 46], cruise: 1.1, z: -40 },
+    { mk: makeYacht, xr: [14, 34], cruise: 1.8, z: -110 },
+    { mk: makeYacht, xr: [16, 38], cruise: -1.4, z: -180 },
+    { mk: makeBoat, xr: [10, 28], cruise: .7, z: -240 },
+    { mk: makeBoat, xr: [12, 30], cruise: -.5, z: -285 },
+  ];
+  SIDE_PROPS.fleet = [];
+  for (const f of fleetDefs) {
+    const v = f.mk();
+    v.position.set(-rand(f.xr[0], f.xr[1]), .03, f.z);
+    v.rotation.y = (f.cruise > 0 ? -1 : 1) * Math.PI / 2;
+    v.userData.cruise = f.cruise;
+    v.userData.phase = Math.random() * 7;
+    scene.add(scrolling(v, SPAN * 2, (o) => { o.position.x = -rand(f.xr[0], f.xr[1]); }));
+    SIDE_PROPS.fleet.push(v);
+  }
+
+  /* a wooden dock reaching out from the bank */
+  const dock = makeDock();
+  dock.position.set(-5, 0, -85);
+  scene.add(scrolling(dock, SPAN));
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -731,13 +975,12 @@ const memeTextures = [];
   }
   for (let k = 0; k < 3; k++) {
     const b = castShadows(makeBillboard(canalTex));
-    const side = (k % 2) ? 1 : -1;
-    b.position.set(side * 7.6, 0, -30 - k * 48);
-    b.rotation.y = side * -.28;
+    /* all on the bank — billboards planted in a river make no sense */
+    b.position.set(7.6 + k * .8, 0, -30 - k * 48);
+    b.rotation.y = -.28;
     scene.add(scrolling(b, SPAN, (o) => {
-      const s = Math.random() > .5 ? 1 : -1;
-      o.position.x = s * (7.2 + Math.random() * 2);
-      o.rotation.y = s * -.28;
+      o.position.x = 7.2 + Math.random() * 2;
+      o.rotation.y = -.28;
       if (memeTextures.length) {
         o.userData.face.material.map = memeTextures[(Math.random() * memeTextures.length) | 0];
         o.userData.face.material.needsUpdate = true;
@@ -1046,11 +1289,11 @@ function doBurst(x, y, z) {
   burst.material.opacity = .9;
 }
 
-/* landing ripples — a ring of pond water pushed out by each hop */
+/* landing splashes — each hop kicks a ring out of the damp sand */
 const ripplePool = [];
 for (let i = 0; i < 6; i++) {
   const r = new THREE.Mesh(new THREE.RingGeometry(.55, .78, 20),
-    new THREE.MeshBasicMaterial({ color: 0xdff6ff, transparent: true, opacity: 0, depthWrite: false }));
+    new THREE.MeshBasicMaterial({ color: 0xefe6d0, transparent: true, opacity: 0, depthWrite: false }));
   r.rotation.x = -Math.PI / 2;
   r.position.y = .025;
   r.visible = false;
@@ -1542,8 +1785,8 @@ function tick(dt) {
   }
   /* the stepping stones are one periodic field — a modulo, not a wrap */
   stoneField.position.z = (stoneField.position.z + worldSpeed * dt) % STONE_PERIOD;
-  /* water surface: the ripple pattern scrolls with the world (the pond
-     is still — WE move) plus a slow sideways drift from the wind */
+  /* river surface and damp sand: their patterns scroll with the world
+     (the ground is still — WE move) plus a slow drift from the wind */
   const uvScroll = worldSpeed * dt * .12;
   waterBump.offset.y = (waterBump.offset.y + uvScroll) % 1;
   waterBumpNear.offset.y = (waterBumpNear.offset.y + uvScroll) % 1;
@@ -1559,6 +1802,17 @@ function tick(dt) {
   if (SIDE_PROPS.mast) {
     const b = SIDE_PROPS.mast.userData.beacon;
     b.material.opacity = .4 + Math.sin(performance.now() * .004) * .35;
+  }
+  /* the fleet: bob on the chop, roll a little, make way under power */
+  if (SIDE_PROPS.fleet) {
+    const tt = performance.now() * .001;
+    for (const v of SIDE_PROPS.fleet) {
+      v.position.z += v.userData.cruise * dt;
+      const ph = tt * 1.6 + v.userData.phase;
+      v.position.y = .03 + Math.sin(ph) * .05;
+      v.rotation.z = Math.sin(ph * .8) * .04;
+      v.rotation.x = Math.sin(ph * .63 + 1) * .025;
+    }
   }
   if (landmarkToad) {
     /* giant toad always faces the camera around Y */
@@ -1818,7 +2072,7 @@ function tick(dt) {
     const t = Math.min(1, r.userData.t);
     const s = (r.userData.big ? .9 : .5) + t * (r.userData.big ? 2.6 : 1.4);
     r.scale.setScalar(s);
-    r.material.opacity = (1 - t) * (r.userData.big ? .55 : .4);
+    r.material.opacity = (1 - t) * (r.userData.big ? .42 : .3);
     if (t >= 1) r.visible = false;
   }
 
