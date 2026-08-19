@@ -878,7 +878,14 @@ function boot() {
   buildStartMenu();
   clock();
   WM.launch('explorer');
-  setTimeout(() => assistant(`Welcome, fren. Everything lives behind the start button — or double-click an icon. Canal 88 has ${CHANNELS.length} tapes.`), 1400);
+  /* The welcome is skipped on a phone. Boot opens the Explorer full screen, so
+     there is no desktop for the balloon to sit beside -- it lands on the
+     window that just opened, and covers its header while explaining a
+     desktop the reader cannot see. The icons and the start button are in
+     plain sight anyway; being in the way is worse than being absent. */
+  if (innerWidth > 640) {
+    setTimeout(() => assistant(`Welcome, fren. Everything lives behind the start button — or double-click an icon. Canal 88 has ${CHANNELS.length} tapes.`), 1400);
+  }
   scheduleAssistant();
   TOASTER.start();          // the room keeps talking whether or not you look
 }
