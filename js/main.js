@@ -1570,6 +1570,65 @@ function mountTerminal(win) {
     pairEl.textContent = `Deepest pool: ${p.dexId} \u00b7 ${p.baseToken?.symbol || '$TOAD'}/${p.quoteToken?.symbol || 'SOL'} \u00b7 ${pairs.length} pools in total`;
   }
 
+  /* Holders come from our own endpoint rather than straight from an RPC: the
+     key that makes this answerable must not be in a page anyone can read. */
+  async function loadHolders() {
+    const statsEl = $('#tmHoldStats', win), listEl = $('#tmHoldList', win), note = $('#tmHoldNote', win);
+    const r = await fetch('/api/holders');
+    const d = await r.json();
+
+    statsEl.innerHTML = ''; listEl.innerHTML = '';
+    if (d.error) {
+      note.textContent = '';
+      const p = document.createElement('p');
+      p.className = 'term__note';
+      p.textContent = d.keyed
+        ? 'The node did not answer just now.'
+        : 'Not available yet — this needs an indexed node, and none is configured.';
+      listEl.appendChild(p);
+      return;
+    }
+
+    statsEl.append(
+      cell('Holders', d.holders === null ? 'needs a node' : d.holders.toLocaleString()),
+      cell('Top 20 hold', d.topShare != null ? d.topShare.toFixed(1) + '%' : '—',
+           d.topShare != null ? (d.topShare > 40 ? 'down' : 'up') : ''),
+      cell('Supply', d.supply ? (d.supply / 1e6).toFixed(0) + 'M' : '—'),
+    );
+    note.textContent = d.holders === null ? '· top wallets only' : '';
+
+    /* The pool itself is usually the largest account by far, and calling that
+       a whale would be nonsense -- so the biggest ones are shown as they are
+       and left for the reader to judge. */
+    (d.top || []).slice(0, 10).forEach((t, i) => {
+      const row = document.createElement('div');
+      row.className = 'term__row term__row--tight';
+      const col = document.createElement('div');
+      col.className = 'term__rowtext';
+      const line = document.createElement('span');
+      line.textContent = `${i + 1}. ${t.address.slice(0, 6)}…${t.address.slice(-4)}`;
+      const sub = document.createElement('i');
+      sub.textContent = `${(t.amount / 1e6).toFixed(2)}M \u00b7 ${t.share != null ? t.share.toFixed(2) + '%' : '—'}`;
+      col.append(line, sub);
+
+      const bar = document.createElement('div');
+      bar.className = 'term__bar2';
+      const fill = document.createElement('i');
+      fill.style.width = Math.min(100, (t.share || 0) * 3).toFixed(1) + '%';
+      bar.appendChild(fill);
+
+      const copy = document.createElement('button');
+      copy.type = 'button'; copy.className = 'xp-btn xp-btn--sm'; copy.textContent = 'Copy';
+      copy.addEventListener('click', async () => {
+        try { await navigator.clipboard.writeText(t.address); toast('Address copied.'); }
+        catch (e) { toast('Could not copy that.'); }
+      });
+
+      row.append(col, bar, copy);
+      listEl.appendChild(row);
+    });
+  }
+
   async function loadDiscovery() {
     const r = await fetch(DEX_API + '/token-boosts/latest/v1');
     if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -1631,6 +1690,7 @@ function mountTerminal(win) {
     liveEl.className = 'term__live';
     try {
       await loadOwn();
+      await loadHolders();
       await loadDiscovery();
       liveEl.textContent = 'live \u00b7 ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       liveEl.className = 'term__live is-on';
