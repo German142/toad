@@ -906,7 +906,10 @@ input, textarea{ cursor:text; }
   display:flex; align-items:flex-start; gap:14px; flex-wrap:wrap;
   padding:6px 8px; border-bottom:1px solid #b8bcc0;
 }
-.paint__tools{ display:grid; grid-template-columns:repeat(4,26px); gap:3px; }
+/* Nine tools in four columns leaves one alone on a third row -- it looked
+   broken the moment the arrow tool joined the eight. Five columns gives two
+   even rows, and the size buttons beside them are two rows as well. */
+.paint__tools{ display:grid; grid-template-columns:repeat(5,26px); gap:3px; }
 .paint__sizes{ display:grid; grid-template-columns:repeat(2,26px); gap:3px; }
 .pt{
   width:26px; height:26px; display:grid; place-items:center;
@@ -938,10 +941,21 @@ input, textarea{ cursor:text; }
   border:1px solid #98a0a8; background:#fff;
 }
 .paint__swatch i{ display:block; width:100%; height:100%; }
-.paint__palette{ display:grid; grid-template-columns:repeat(14,16px); gap:2px; }
+/* The palette used to sit in a fixed 14-column block, so on a 640px window
+   half the row was empty beside it while the buttons underneath wrapped
+   unevenly. It fills the row now, and the buttons get a row of their own. */
+/* Squares, like the thing this imitates -- stretching them to fill the row
+   turned the palette into a bar chart. The block is centred instead, so the
+   footer is balanced without the colours being pulled out of shape. */
+.paint__palette{
+  flex:1; min-width:0;
+  display:grid; grid-template-columns:repeat(14,16px);
+  grid-auto-rows:16px; gap:2px; justify-content:center; align-content:center;
+}
 .pc{ width:16px; height:16px; border:1px solid #7a7f86; cursor:pointer; padding:0; }
 .pc:hover{ outline:1px solid #0a70c8; outline-offset:1px; }
-.paint__acts{ display:flex; gap:6px; margin-left:auto; flex-wrap:wrap; }
+.paint__acts{ display:flex; gap:6px; width:100%; flex-wrap:wrap; }
+.paint__acts .xp-btn{ flex:1 1 auto; white-space:nowrap; }
 
 @media (max-width:820px){
   .paint__palette{ grid-template-columns:repeat(7,18px); }
@@ -1000,7 +1014,6 @@ input, textarea{ cursor:text; }
      narrow window shoves them off the edge instead of onto a second row. */
   .paint__extras { margin-left:0; width:100%; flex-wrap:wrap; }
   .paint__extras .xp-btn { flex:1 1 auto; }
-  .paint__tools{ grid-template-columns:repeat(5,26px); }
   .paint__stamps { justify-content:flex-start; }
   .gal__viewbar { flex-wrap:wrap; }
   .gal__title { flex:1 1 100%; order:3; }
