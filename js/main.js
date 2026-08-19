@@ -2194,10 +2194,10 @@ function mountGallery(win) {
   $('#galFlag', win).addEventListener('click', () => { if (open) report(open); });
   $('#galMine', win).addEventListener('click', async () => {
     if (!open) return;
-    if (!confirm('Take your drawing off the wall?\n\nThis cannot be undone.')) return;
+    if (!confirm('Take your drawing off the wall?\n\nIt stops being visible. You can put it back from the desk.')) return;
     try {
       await galleryRemove(open.id);
-      toast('Taken down.');
+      toast('Off the wall. You can put it back from the desk.');
       back();
       render();
     } catch (e) {
