@@ -1206,6 +1206,7 @@ const CHAT_AVA  = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/toad_avatars
 const CHAT_ME   = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_whoami';
 const CHAT_SETA = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_set_avatar';
 const CHAT_HERE = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_here';
+const CHAT_FLAG = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_chat_report';
 const CHAT_WHOS = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/toad_online';
 const CHAT_CFG  = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/toad_chat_config';
 const CHAT_RPC  = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_say';
@@ -1253,6 +1254,16 @@ async function chatHere(nick) {
   }
   return {};
 }
+/* A drawing is the one thing no filter can read -- somebody advertised a rival
+   site by drawing it. So the room gets the same brake the gallery has: enough
+   people calling a message wrong takes it down until a human looks. */
+async function chatReport(id) {
+  const r = await fetch(CHAT_FLAG, { method: 'POST', headers: GAL_HEAD,
+    body: JSON.stringify({ msg: id, reporter: voterToken() }) });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
 async function chatOnline() {
   const r = await fetch(CHAT_WHOS + '?select=who,nick,avatar', { headers: GAL_HEAD });
   if (!r.ok) return [];
@@ -1479,8 +1490,22 @@ function mountChat(win) {
       const pic = document.createElement('img');
       pic.className = 'msn__pic-msg'; pic.alt = 'a drawing'; pic.loading = 'lazy';
       pic.src = row.image;
-      pic.addEventListener('click', () => { WM.launch('gallery'); });
       l.appendChild(pic);
+    }
+    /* Anything somebody else put here can be called wrong. Your own lines and
+       the toad's cannot -- reporting yourself is noise. */
+    if (!row.is_bot && row.who !== mine) {
+      const flag = document.createElement('button');
+      flag.type = 'button'; flag.className = 'msn__flag';
+      flag.textContent = '\u2691';
+      flag.title = 'Report this — enough reports take it down';
+      flag.addEventListener('click', async () => {
+        if (!confirm('Report this message?\n\nEnough reports take it down until someone looks at it.')) return;
+        flag.disabled = true;
+        try { await chatReport(row.id); toast('Reported. Thank you.'); }
+        catch (e) { toast('That report did not go through.'); flag.disabled = false; }
+      });
+      l.appendChild(flag);
     }
     log.appendChild(l);
   }
@@ -1492,6 +1517,7 @@ function mountChat(win) {
     if (n) {
       const res = await chatHere(n);             // announce, then read the room
       if (res.error === 'that name is taken') toast('That name belongs to the toad. Pick another.');
+      if (res.error === 'no links in a name') toast('A name cannot be a web address. Pick another.');
     }
     const rows = await chatOnline();
     list.innerHTML = '';
@@ -1570,6 +1596,9 @@ function mountChat(win) {
     'too many drawings': 'That is enough drawings for now.',
     'the room is closed': 'The room is closed.',
     'message out of range': 'Too long, or nothing to say.',
+    'no links in a name': 'A name cannot be a web address. Pick another.',
+    'say hello first': 'Say something first — drawings after that.',
+    'bad speaker token': 'Something is wrong with this browser. Try reloading.',
   };
 
   async function send(text, image) {
