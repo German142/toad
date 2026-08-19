@@ -1099,7 +1099,12 @@ function scheduleAssistant(first) {
   const wait = first ? 9000 : 45000 + Math.floor(Math.random() * 45000);
   setTimeout(() => {
     const clip = $('#clip');
-    if (clip && clip.hidden && !document.hidden) {
+    /* On a phone the window is the whole screen, so a balloon that appears on
+       its own does not sit beside anything -- it sits on top of whatever you
+       were reading or typing. The assistant keeps its chatter for desktops.
+       Toasts still come through: those are answers to something you did. */
+    const roomy = innerWidth > 640;
+    if (roomy && clip && clip.hidden && !document.hidden) {
       /* The first thing it says is always news; after that it alternates, so
          the jokes still get a turn. */
       sayAssistant(first || Math.random() < .5 ? NEWS_LINES : ASSIST_LINES);

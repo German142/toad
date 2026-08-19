@@ -1343,3 +1343,34 @@ input, textarea{ cursor:text; }
 [hidden] { display: none !important; }
 .term__live.is-part { color:#b07d00; }
 .term__live.is-part::before { content:'●'; margin-right:4px; }
+
+/* ── the phone ───────────────────────────────────────────────────
+   Nothing here overflows, and it was still wrong: on a 375px screen the
+   assistant sat on top of the message box, the buddy list took a quarter of
+   the width to show one name, and the house rules pushed the room upward.
+   Fitting is not the same as usable. */
+@media (max-width:640px){
+
+  /* The balloon moves to the top. There is nothing up there but a title bar,
+     and every window on a phone has its input at the bottom. */
+  .clip { top:calc(var(--tb-h,0px) + 8px); bottom:auto; right:8px; left:8px; width:auto; }
+  .clip__bubble::after { top:auto; bottom:100%; transform:rotate(180deg) translateY(1px); }
+
+  /* The buddy list lies down: a strip across the top instead of a column
+     down the side, so the room gets the whole width. */
+  .msn__body { flex-direction:column; }
+  .msn__list { width:auto; max-height:none; overflow-x:auto; overflow-y:hidden;
+               display:flex; align-items:center; gap:10px; padding:5px 8px;
+               border-right:0; border-bottom:1px solid #cdd3da; }
+  .msn__listhead { margin:0; flex:none; white-space:nowrap; }
+  .msn__list ul { display:flex; gap:10px; }
+  .msn__buddy { flex:none; padding:0; }
+  .msn__log { flex:1; }
+
+  /* The rules stay, quieter: they matter most to somebody arriving, and they
+     are still the first thing under the box. */
+  .msn__rule { font-size:10px; line-height:1.45; padding:4px 8px 6px; }
+  .msn__tools { gap:4px; padding:4px 6px; }
+  .msn__emo { font-size:14px; padding:1px 2px; }
+  .msn__compose { padding:5px 6px; }
+}
