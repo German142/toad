@@ -30,6 +30,9 @@ const JUMP_VY = 10.3;           // the big leap (input) — apex ≈ 1.56
 const HOP_VY = 4.2;             // the idle hop — a toad never walks
 const GRAVITY = -34;
 const SLAM_VY = -21;            // roll in mid-air = slam down
+const GATHER = .09;             // ground dwell between hops — the coil.
+                                // A real toad is land → compress → EXPLODE;
+                                // the pause is what sells the explosion.
 const LANE_SNAP = 11;           // lane-change speed, units/s
 const ROLL_TIME = 0.62;
 
@@ -1078,7 +1081,9 @@ let skin = store.get('skin', 'classic');
 let dist = 0, score = 0, runPills = 0, closeCalls = 0, speed = SPEED_BASE;
 let lane = 1, laneX = 0, targetLane = 1, queuedLane = 0;
 let toadY = 0, vy = 0, grounded = true, bigAir = false, rolling = 0, animT = 0;
-let dieT = 0, shakeT = 0, squash = 1, invulnBlink = 0;
+let hopPhase = 0;               // >0: coiled on the ground, counting down to launch
+let jumpBuf = 0;                // leap pressed a hair early — honour it on landing
+let dieT = 0, shakeT = 0, squash = 1, squashV = 0, invulnBlink = 0;
 let power = null, powerT = 0, powerMax = 1;   // active power-up
 let spawnGap = 24, spawnAcc = 0, sincePower = 0, lastKind = '';
 
@@ -1087,6 +1092,7 @@ function resetRun() {
   speed = SPEED_BASE;
   lane = 1; targetLane = 1; queuedLane = 0; laneX = 0;
   toadY = 0; vy = 0; grounded = true; bigAir = false; rolling = 0;
+  hopPhase = 0; jumpBuf = 0; squash = 1; squashV = 0;
   dieT = 0; shakeT = 0; squash = 1;
   power = null; powerT = 0; sincePower = 0;
   spawnGap = 24; spawnAcc = 12;
@@ -1226,18 +1232,24 @@ function goLane(dir) {
   targetLane = next;
   Sound.lane();
 }
-function doJump() {
-  if (state !== STATE.PLAY) return;
-  /* the toad is airborne most of the time on his idle hops — a big
-     leap is allowed from the ground OR out of a small hop, otherwise
-     the input would almost never land */
-  if (!grounded && bigAir) return;
+/* the actual push-off — from the ground it fires out of the coil,
+   mid-small-hop it converts the hop into the leap */
+function launchLeap() {
   vy = JUMP_VY;
   grounded = false;
   bigAir = true;
   rolling = 0;
-  squash = 1.14;
+  hopPhase = 0;
+  squashV = 6.5;              // explosive extension out of the crouch
+  ripple(laneX, .3, false);   // the shove-off kicks the water behind him
   Sound.jump();
+}
+function doJump() {
+  if (state !== STATE.PLAY) return;
+  /* mid-big-leap: buffer it — a press a hair early should still fire
+     the instant he touches down, not be eaten */
+  if (!grounded && bigAir) { jumpBuf = .14; return; }
+  launchLeap();
 }
 function doRoll() {
   if (state !== STATE.PLAY) return;
@@ -1588,24 +1600,33 @@ function tick(dt) {
     else laneX += Math.sign(dx) * step;
     lane = targetLane;
 
-    /* vertical — a pure parabola. No apex ease, no float: gravity is
-       gravity, and the body language does the rest */
+    /* vertical — a pure parabola in the air; on the ground, the toad
+       cycle: land with a splat → coil for a beat → spring off again */
     if (!grounded) {
       vy += GRAVITY * dt;
       toadY += vy * dt;
       if (toadY <= 0) {
         const hard = bigAir || vy < -12;
         toadY = 0; vy = 0; grounded = true; bigAir = false;
-        squash = hard ? .72 : .9;
+        /* heavier landings need a longer gather; the jitter keeps him
+           an animal instead of a metronome */
+        hopPhase = GATHER * (hard ? 1.7 : 1) * (.85 + Math.random() * .35);
+        squash = hard ? .6 : .74;
+        squashV = hard ? -1.6 : -.8;    // momentum carries the splat a touch deeper
         ripple(laneX, 0, hard);
+        if (jumpBuf > 0) { jumpBuf = 0; launchLeap(); }
       }
     }
+    if (jumpBuf > 0) jumpBuf -= dt;
     if (rolling > 0) rolling -= dt;
-    /* auto-hop — a toad never walks. Grounded and not rolling means
-       the next small hop starts immediately */
+    /* the coil counts down only while he's actually crouched */
     if (grounded && rolling <= 0) {
-      vy = HOP_VY;
-      grounded = false;
+      hopPhase -= dt;
+      if (hopPhase <= 0) {
+        vy = HOP_VY * (.9 + Math.random() * .2);
+        grounded = false;
+        squashV = 4.2;                  // spring release
+      }
     }
 
     /* power-up timer */
@@ -1708,7 +1729,7 @@ function tick(dt) {
     let frame;
     if (rolling > 0) frame = 'roll';
     else if (!grounded) frame = vy > (bigAir ? .5 : 0) ? 'jump' : 'fall';
-    else frame = 'jump';   // the single tick between landing and the next hop
+    else frame = 'fall';   // coiled on the stone, braced for the next spring
     setToadFrame(frame);
   }
 
@@ -1729,21 +1750,31 @@ function tick(dt) {
   /* no stride bounce any more — the hops ARE the bounce */
   toad.position.x = laneX;
   toad.position.y = toadY + bob;
-  squash += (1 - squash) * Math.min(1, dt * 12);
-  /* squash & stretch, the animator's gravity: fast vertical motion
-     elongates the body, landings flatten it, the apex relaxes to 1 */
-  const stretch = (!grounded && rolling <= 0) ? Math.min(1.24, 1 + Math.abs(vy) * .02) : 1;
-  const sy = rolling > 0 ? .58 : squash * stretch;
-  const sx = rolling > 0 ? 1.18 : ((2 - squash) * .5 + .5) / Math.sqrt(stretch);
+  /* the body is one underdamped spring. Targets: coiled while on the
+     ground, velocity-stretched in flight, neutral otherwise. Launch
+     and landing add impulses, and the underdamping settles everything
+     with a small organic wobble instead of a dead exponential */
+  let scaleTarget = 1;
+  if (state === STATE.PLAY && rolling <= 0) {
+    if (!grounded) scaleTarget = Math.min(1.26, 1 + Math.abs(vy) * .022);
+    else if (hopPhase > 0) scaleTarget = .8;
+  }
+  squashV += (scaleTarget - squash) * 240 * dt;
+  squashV *= Math.exp(-16 * dt);
+  squash += squashV * dt;
+  const sy = rolling > 0 ? .58 : squash;
+  /* width preserves volume — splats go wide, stretches go thin */
+  const sx = rolling > 0 ? 1.18 : 1 / Math.sqrt(Math.min(1.35, Math.max(.55, squash)));
   toadSprite.scale.set(sx, sy, 1);
   toadSprite.position.y = TOAD_H / 2 * sy;
   if (state === STATE.PLAY) {
     /* lean into lane changes only — rolling the sprite with vy made
        every jump look like a sideways stumble */
     toad.rotation.z = (laneX - LANE_X[targetLane]) * .12;
-    /* pitch: tip back on the way up, nose over on the way down */
-    toadSprite.rotation.x = (grounded || rolling > 0) ? 0 : vy * .011;
-  } else if (toadSprite.rotation.x !== 0) toadSprite.rotation.x = 0;
+  }
+  /* pitch eases in and out — tips back climbing, noses over falling */
+  const pitchTarget = (state === STATE.PLAY && !grounded && rolling <= 0) ? vy * .011 : 0;
+  toadSprite.rotation.x += (pitchTarget - toadSprite.rotation.x) * Math.min(1, dt * 12);
   toadShadow.material.opacity = Math.max(.15, .8 - toadY * .28);
   toadShadow.scale.setScalar(Math.max(.5, 1 - toadY * .16));
   if (power === 'star') {
