@@ -249,6 +249,7 @@ const APPS = {
   /* title and status count the array rather than hardcoding it, so adding a
      meme is still a one-line change */
   paint:      { title:'Toad Paint',            icon:'ic-paint',      tpl:'app-paint',      w:640,  h:560, status:'Untitled - Toad Paint', mount:mountPaint },
+  terminal:   { title:'Toad Terminal',            icon:'ic-terminal',   tpl:'app-terminal',   w:720,  h:620, status:'Live from Dexscreener', mount:mountTerminal },
   chat:       { title:'Toad Messenger',          icon:'ic-chat',       tpl:'app-chat',       w:520,  h:560, status:'The Pond', mount:mountChat },
   gallery:    { title:'Toad Gallery',          icon:'ic-gallery',    tpl:'app-gallery',    w:700,  h:520, status:'Drawings from the pond', mount:mountGallery },
   memes:      { title:`Evidence — ${MEMES.length} objects`, icon:'ic-memes', tpl:'app-memes', w:640, h:500, status:`${MEMES.length} objects`, mount:mountMemes },
@@ -274,6 +275,7 @@ const DESKTOP_ICONS = [
   { link:'tiktok',    label:'TikTok',        icon:'ic-tiktok' },
   { app:'toadrun',    label:'Toad Run' },
   { app:'paint',      label:'Toad Paint' },
+  { app:'terminal',   label:'Terminal' },
   { app:'chat',       label:'Messenger' },
   { app:'gallery',    label:'Gallery' },
   { app:'chart',      label:'Live Chart' },
@@ -1070,6 +1072,7 @@ const ASSIST_LINES = [
    without anybody having to announce it anywhere. Keep the oldest few and
    drop the rest, or the news stops being news. */
 const NEWS_LINES = [
+  'New: Toad Terminal \u2014 the numbers, live, without leaving the desktop.',
   'New: the messenger keeps listening after you close it \u2014 a message pops up in the corner, like 2003.',
   'New: Toad Messenger. One public room, like it is 2003. No links, no DMs, no seed phrases.',
   'New: the public gallery. Anything drawn in Toad Paint can go up on the wall.',
@@ -1501,6 +1504,152 @@ const TOASTER = {
 };
 
 const CHAT_EMOS = ['\uD83D\uDC38', '\uD83C\uDF7A', '\uD83D\uDCC8', '\uD83D\uDCC9', '\uD83D\uDD25', '\uD83D\uDC8E', '\uD83E\uDD1D', '\uD83D\uDE02', '\uD83D\uDE2D', '\uD83D\uDC40', '\uD83C\uDF19', '\u2764\uFE0F'];
+
+/* ── the terminal ──────────────────────────────────────────────
+   The numbers everybody checks anyway, without leaving the desktop, and a
+   look at what is being pushed on Solana right now.
+
+   Everything here comes from Dexscreener's public endpoints: no key, no
+   account, nothing of ours on the wire. What is deliberately NOT here is
+   holders, top wallets and bundler analysis -- that needs an indexed RPC,
+   which needs a paid key, which must never sit in a page anyone can read. */
+const DEX_API = 'https://api.dexscreener.com';
+const CA = 'A13oRB9FFaiUjfi6LdCg6p9ka1u8SfGkUFs4SKvPpump';
+
+const money = n => {
+  const v = Number(n);
+  if (!isFinite(v)) return '—';
+  if (v >= 1e9) return '$' + (v / 1e9).toFixed(2) + 'B';
+  if (v >= 1e6) return '$' + (v / 1e6).toFixed(2) + 'M';
+  if (v >= 1e3) return '$' + (v / 1e3).toFixed(1) + 'K';
+  return '$' + v.toFixed(2);
+};
+const price = n => {
+  const v = Number(n);
+  if (!isFinite(v)) return '—';
+  return '$' + (v < 0.01 ? v.toFixed(6) : v.toFixed(4));
+};
+
+function mountTerminal(win) {
+  const statsEl = $('#tmStats', win), pairEl = $('#tmPair', win);
+  const discEl = $('#tmDisc', win), liveEl = $('#tmLive', win), countEl = $('#tmDiscCount', win);
+  let timer = null, busy = false;
+
+  const cell = (label, value, tone) => {
+    const d = document.createElement('div');
+    d.className = 'term__cell' + (tone ? ' is-' + tone : '');
+    const k = document.createElement('span'); k.textContent = label;
+    const v = document.createElement('b');    v.textContent = value;
+    d.append(k, v);
+    return d;
+  };
+
+  async function loadOwn() {
+    const r = await fetch(DEX_API + '/latest/dex/tokens/' + CA);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const pairs = (await r.json()).pairs || [];
+    if (!pairs.length) throw new Error('no pairs');
+    /* Twenty pairs come back; the one with the deepest liquidity is the one
+       whose price actually means anything. */
+    const p = pairs.slice().sort((a, b) =>
+      ((b.liquidity || {}).usd || 0) - ((a.liquidity || {}).usd || 0))[0];
+
+    const ch = Number((p.priceChange || {}).h24);
+    const tx = p.txns && p.txns.h24 ? p.txns.h24 : { buys: 0, sells: 0 };
+
+    statsEl.innerHTML = '';
+    statsEl.append(
+      cell('Price', price(p.priceUsd)),
+      cell('24h', (isFinite(ch) ? (ch > 0 ? '+' : '') + ch.toFixed(2) + '%' : '—'),
+           isFinite(ch) ? (ch >= 0 ? 'up' : 'down') : ''),
+      cell('Market cap', money(p.marketCap || p.fdv)),
+      cell('Liquidity', money((p.liquidity || {}).usd)),
+      cell('Volume 24h', money((p.volume || {}).h24)),
+      cell('Buys / sells 24h', `${tx.buys} / ${tx.sells}`, tx.buys >= tx.sells ? 'up' : 'down'),
+    );
+    pairEl.textContent = `Deepest pool: ${p.dexId} \u00b7 ${p.baseToken?.symbol || '$TOAD'}/${p.quoteToken?.symbol || 'SOL'} \u00b7 ${pairs.length} pools in total`;
+  }
+
+  async function loadDiscovery() {
+    const r = await fetch(DEX_API + '/token-boosts/latest/v1');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    let rows = await r.json();
+    if (!Array.isArray(rows)) rows = [rows];
+    rows = rows.filter(x => x && x.chainId === 'solana' && x.tokenAddress);
+
+    countEl.textContent = rows.length ? `· ${rows.length}` : '';
+    discEl.innerHTML = '';
+    if (!rows.length) {
+      const p = document.createElement('p');
+      p.className = 'term__note'; p.textContent = 'Nothing being pushed right now.';
+      discEl.appendChild(p);
+      return;
+    }
+    rows.forEach(t => {
+      const row = document.createElement('div');
+      row.className = 'term__row';
+
+      /* The payload carries a logo for each token, and it is deliberately not
+         used: that would pull an image from a stranger's server into this
+         page for every entry, hand them a hit from every visitor, and widen
+         the security policy to let it happen. A row of text is enough. */
+
+      const col = document.createElement('div');
+      col.className = 'term__rowtext';
+      const desc = document.createElement('span');
+      desc.textContent = (t.description || '(no description)').slice(0, 120);   // a stranger's text
+      const addr = document.createElement('i');
+      addr.textContent = t.tokenAddress.slice(0, 6) + '…' + t.tokenAddress.slice(-4);
+      col.append(desc, addr);
+
+      const acts = document.createElement('div');
+      acts.className = 'term__rowacts';
+      const copy = document.createElement('button');
+      copy.type = 'button'; copy.className = 'xp-btn xp-btn--sm'; copy.textContent = 'Copy address';
+      copy.addEventListener('click', async () => {
+        try { await navigator.clipboard.writeText(t.tokenAddress); toast('Address copied.'); }
+        catch (e) { toast('Could not copy that.'); }
+      });
+      /* Only ever Dexscreener. A token's own site is a stranger's domain and
+         this desktop does not hand those out. */
+      const look = document.createElement('a');
+      look.className = 'xp-btn xp-btn--sm';
+      look.href = 'https://dexscreener.com/solana/' + encodeURIComponent(t.tokenAddress);
+      look.target = '_blank'; look.rel = 'noopener noreferrer';
+      look.textContent = 'Chart';
+      acts.append(copy, look);
+
+      row.append(col, acts);
+      discEl.appendChild(row);
+    });
+  }
+
+  async function refresh() {
+    if (busy) return;
+    busy = true;
+    liveEl.textContent = 'loading…';
+    liveEl.className = 'term__live';
+    try {
+      await loadOwn();
+      await loadDiscovery();
+      liveEl.textContent = 'live \u00b7 ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      liveEl.className = 'term__live is-on';
+    } catch (e) {
+      liveEl.textContent = 'could not reach Dexscreener';
+      liveEl.className = 'term__live is-off';
+    }
+    busy = false;
+  }
+
+  $('#tmReload', win).addEventListener('click', () => { Sound.blip(700, .04, .03); refresh(); });
+  refresh();
+  timer = setInterval(() => { if (!document.hidden) refresh(); }, 45000);
+
+  const obs = new MutationObserver(() => {
+    if (!win.isConnected) { clearInterval(timer); obs.disconnect(); }
+  });
+  obs.observe(document.body, { childList: true });
+}
 
 function mountChat(win) {
   const log = $('#chLog', win), body = $('#chBody', win), nick = $('#chNick', win);
