@@ -1,23 +1,26 @@
 /* Who actually holds $TOAD.
  *
  * This exists because the numbers it returns need an indexed RPC, an indexed
- * RPC needs a paid key, and a paid key must never sit in a page that anyone
- * can read. The key lives in the environment here and never leaves.
+ * RPC needs a paid key, and a paid key must never sit in a page anyone can
+ * read. The key lives in the environment here and never leaves.
  *
  * It is deliberately not a proxy. There is no method parameter and no mint
  * parameter: it answers exactly one question about exactly one token, so it
- * cannot be turned into somebody else's free RPC. That matters more than the
- * flexibility it gives up -- an open proxy on a public domain is somebody
- * else's quota within a day.
+ * cannot be turned into somebody else's free RPC. An open proxy on a public
+ * domain is somebody else's quota within a day.
  *
- * Answers are cached at the edge for a minute. Holder counts do not move
- * faster than that, and the cache is what keeps a busy day from becoming a
- * bill.
+ * The obvious call for "who holds the most" is getTokenLargestAccounts, and
+ * Helius deprioritises it -- it answers "Request deprioritized due to number
+ * of accounts requested" rather than failing outright, which is easy to
+ * mistake for a network problem. Walking the token accounts once gives the
+ * count and the largest holders from the same pass, and is a call it is happy
+ * to serve.
  */
 const MINT = 'A13oRB9FFaiUjfi6LdCg6p9ka1u8SfGkUFs4SKvPpump';
-const FALLBACK = 'https://api.mainnet-beta.solana.com';
+const PAGE = 1000;
+const MAX_PAGES = 60;                 // 60k accounts, and bounded on purpose
 
-async function rpc(url, method, params) {
+async function call(url, method, params) {
   const r = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -29,72 +32,64 @@ async function rpc(url, method, params) {
   return j.result;
 }
 
-/* Whether a provider can answer "how many hold this" is decided by asking it,
-   not by looking at its hostname. The first version tested the URL for the
-   word helius, which would have quietly reported no holders for any other
-   indexed provider -- and reported a wrong capability for a proxy in front of
-   one. Ask; if it cannot, say so. */
-async function countHolders(url) {
-  let page = 1, total = 0;
-  while (page <= 20) {                       // 20 x 1000 is plenty, and bounded
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 'holders', method: 'getTokenAccounts',
-        params: { mint: MINT, limit: 1000, page, options: { showZeroBalance: false } } }),
-    });
-    if (!r.ok) return null;
-    const j = await r.json();
-    if (j.error) return null;                 // provider does not index this
-    const list = j?.result?.token_accounts;
-    if (!Array.isArray(list) || !list.length) break;
-    total += list.filter(a => Number(a.amount) > 0).length;
-    if (list.length < 1000) break;
-    page++;
-  }
-  return total || null;
-}
-
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
     return res.status(405).json({ error: 'GET only' });
   }
-
-  const url = process.env.SOLANA_RPC || FALLBACK;
+  const url = process.env.SOLANA_RPC;
+  if (!url) {
+    res.setHeader('Cache-Control', 'public, s-maxage=60');
+    return res.status(200).json({ error: 'no node configured', keyed: false });
+  }
 
   try {
-    const [supply, largest] = await Promise.all([
-      rpc(url, 'getTokenSupply', [MINT]),
-      rpc(url, 'getTokenLargestAccounts', [MINT]),
-    ]);
-
+    const supply = await call(url, 'getTokenSupply', [MINT]);
+    const decimals = Number(supply?.value?.decimals ?? 6);
     const total = Number(supply?.value?.uiAmount) || 0;
-    const top = (largest?.value || []).slice(0, 20).map(a => ({
-      address: a.address,
-      amount: Number(a.uiAmount) || 0,
-      share: total ? +(Number(a.uiAmount) / total * 100).toFixed(2) : null,
-    }));
+    const unit = 10 ** decimals;
 
-    let holders = null;
-    try { holders = await countHolders(url); } catch (e) { holders = null; }
+    /* One pass: every holder is counted and the largest are kept as we go,
+       so the top twenty and the count can never disagree with each other. */
+    const owners = new Map();
+    let page = 1, truncated = false;
+    for (; page <= MAX_PAGES; page++) {
+      const r = await call(url, 'getTokenAccounts',
+        { mint: MINT, limit: PAGE, page, options: { showZeroBalance: false } });
+      const list = r?.token_accounts || [];
+      for (const a of list) {
+        const n = Number(a.amount) || 0;
+        if (n <= 0) continue;
+        /* Keyed by owner, not by token account: one person with three
+           accounts is one holder, and counting accounts would inflate both
+           numbers in a way that flatters the token. */
+        owners.set(a.owner, (owners.get(a.owner) || 0) + n);
+      }
+      if (list.length < PAGE) break;
+      if (page === MAX_PAGES) truncated = true;
+    }
 
-    /* A minute at the edge: long enough that a crowd costs one call, short
-       enough that the number still feels live. */
-    res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+    const top = [...owners.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 20)
+      .map(([address, raw]) => {
+        const amount = raw / unit;
+        return { address, amount, share: total ? +(amount / total * 100).toFixed(2) : null };
+      });
+
+    res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=600');
     return res.status(200).json({
       mint: MINT,
       supply: total,
-      holders,                                   // null when no indexed key is configured
+      holders: owners.size,
+      truncated,                                   // true if the walk hit its bound
       top,
       topShare: +top.reduce((n, t) => n + (t.share || 0), 0).toFixed(2),
-      keyed: url !== FALLBACK,
+      keyed: true,
       at: new Date().toISOString(),
     });
   } catch (e) {
-    /* A public endpoint rate-limits hard, and the window should say so rather
-       than sit there empty pretending to load. */
     res.setHeader('Cache-Control', 'public, s-maxage=15');
-    return res.status(200).json({ error: String(e.message || e), keyed: url !== FALLBACK });
+    return res.status(200).json({ error: String(e.message || e), keyed: true });
   }
 }
