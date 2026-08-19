@@ -596,7 +596,10 @@ function mountGameChat(host) {
     clearTimeout(timer);
     try {
       if (first) { mine = await chatWhoAmI(); faces = await chatFaces(); }
-      const rows = await chatFetch(lastId);
+      /* `seen` is the memory now, not lastId -- but the corner popup still
+         works from ids, so keep it fed. */
+      const ids  = await chatFetchIds();
+      const rows = await chatFetchThese(ids.filter(id => !seen.has(id)));
       if (rows.some(r => !r.is_bot && !faces[r.who])) faces = await chatFaces();
       rows.forEach(r => {
         lastId = Math.max(lastId, r.id);
@@ -1207,6 +1210,9 @@ const CHAT_ME   = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_who
 const CHAT_SETA = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_set_avatar';
 const CHAT_HERE = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_here';
 const CHAT_FLAG = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_chat_report';
+const CHAT_ADMIN = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_is_admin';
+const CHAT_QUEUE = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_pending';
+const CHAT_MOD   = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_moderate';
 const CHAT_WHOS = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/toad_online';
 const CHAT_CFG  = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/toad_chat_config';
 const CHAT_RPC  = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_say';
@@ -1216,6 +1222,22 @@ const NUDGE = '*nudge*';
 async function chatFetch(sinceId) {
   const q = sinceId ? '&id=gt.' + sinceId : '';
   const r = await fetch(CHAT_URL + '?select=id,created_at,nick,body,who,image,is_bot&order=id.asc&limit=80' + q, { headers: GAL_HEAD });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+/* A drawing that waited for approval is older than everything since, so
+   asking for "anything newer than the last id I saw" will never find it. The
+   room therefore asks which ids exist -- a tiny query, ids only -- and fetches
+   just the ones it has not shown. Late arrivals slot in wherever they belong. */
+async function chatFetchIds() {
+  const r = await fetch(CHAT_URL + '?select=id&order=id.desc&limit=60', { headers: GAL_HEAD });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return (await r.json()).map(x => x.id);
+}
+async function chatFetchThese(ids) {
+  if (!ids.length) return [];
+  const r = await fetch(CHAT_URL + '?select=id,created_at,nick,body,who,image,is_bot&order=id.asc&id=in.(' + ids.join(',') + ')', { headers: GAL_HEAD });
   if (!r.ok) throw new Error('HTTP ' + r.status);
   return r.json();
 }
@@ -1260,6 +1282,26 @@ async function chatHere(nick) {
 async function chatReport(id) {
   const r = await fetch(CHAT_FLAG, { method: 'POST', headers: GAL_HEAD,
     body: JSON.stringify({ msg: id, reporter: voterToken() }) });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+/* The queue of drawings waiting to be let in. Every one of these refuses
+   anybody who is not registered as the owner -- the check is in the function,
+   so hiding the button is only tidiness, never the protection. */
+const chatAmAdmin = () => fetch(CHAT_ADMIN, { method: 'POST', headers: GAL_HEAD,
+  body: JSON.stringify({ speaker: voterToken() }) })
+  .then(r => r.ok ? r.json() : { admin: false }).then(j => !!j.admin).catch(() => false);
+
+async function chatPending() {
+  const r = await fetch(CHAT_QUEUE, { method: 'POST', headers: GAL_HEAD,
+    body: JSON.stringify({ speaker: voterToken() }) });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+async function chatModerate(id, allow) {
+  const r = await fetch(CHAT_MOD, { method: 'POST', headers: GAL_HEAD,
+    body: JSON.stringify({ msg: id, speaker: voterToken(), allow }) });
   if (!r.ok) throw new Error(await r.text());
   return r.json();
 }
@@ -1562,7 +1604,8 @@ function mountChat(win) {
         }
       }
       if (first) { mine = await chatWhoAmI(); faces = await chatFaces(); }
-      const rows = await chatFetch(lastId);
+      const ids  = await chatFetchIds();
+      const rows = await chatFetchThese(ids.filter(id => !seen.has(id)));
       /* Whatever this window has shown, the corner need not announce. */
       rows.forEach(r => { TOASTER.lastId = Math.max(TOASTER.lastId, r.id); });
       /* A face that arrives after its owner has spoken should still show up,
@@ -1611,6 +1654,9 @@ function mountChat(win) {
       const res = await chatSay(n, t, image);
       if (res && res.ok === false && res.reason === 'language') {
         toast('The toad had a word with you about that.');
+      } else if (res && res.pending) {
+        toast('Your drawing is waiting for the toad to look at it.');
+        if (text === undefined) body.value = '';
       } else if (text === undefined) {
         body.value = '';
       }
@@ -1640,6 +1686,73 @@ function mountChat(win) {
   });
   body.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+  });
+
+  /* The gate. Present for exactly one browser; everyone else never learns it
+     is there, and could not use it if they did. */
+  const gate = $('#chGate', win), gateList = $('#chGateList', win), queueBtn = $('#chQueue', win);
+  let amAdmin = false;
+
+  async function refreshQueue() {
+    if (!amAdmin) return;
+    let rows = [];
+    try { rows = await chatPending(); } catch (e) { return; }
+    queueBtn.hidden = false;
+    queueBtn.querySelector('b').textContent = rows.length;
+    queueBtn.classList.toggle('is-waiting', rows.length > 0);
+
+    gateList.innerHTML = '';
+    if (!rows.length) {
+      const p = document.createElement('p');
+      p.className = 'msn__gateempty';
+      p.textContent = 'Nothing waiting. Drawings appear here before anyone else can see them.';
+      gateList.appendChild(p);
+      return;
+    }
+    rows.forEach(row => {
+      const card = document.createElement('div');
+      card.className = 'msn__gatecard';
+
+      const img = document.createElement('img');
+      img.src = row.image; img.alt = '';        // src, never innerHTML
+
+      const who = document.createElement('span');
+      who.textContent = row.nick;               // textContent: a stranger's text
+
+      const yes = document.createElement('button');
+      yes.type = 'button'; yes.className = 'xp-btn xp-btn--sm xp-btn--go'; yes.textContent = 'Let it in';
+      const no = document.createElement('button');
+      no.type = 'button'; no.className = 'xp-btn xp-btn--sm'; no.textContent = 'Refuse';
+
+      const decide = async allow => {
+        yes.disabled = no.disabled = true;
+        try {
+          await chatModerate(row.id, allow);
+          toast(allow ? 'Let in — it is in the room now.' : 'Refused. It stays out of sight.');
+          await refreshQueue();
+          if (allow) await poll(false);       // the two-step fetch finds it wherever it sits
+        } catch (e) {
+          toast('That did not go through.');
+          yes.disabled = no.disabled = false;
+        }
+      };
+      yes.addEventListener('click', () => decide(true));
+      no.addEventListener('click', () => decide(false));
+
+      const acts = document.createElement('div');
+      acts.className = 'msn__gateacts';
+      acts.append(who, yes, no);
+      card.append(img, acts);
+      gateList.appendChild(card);
+    });
+  }
+
+  queueBtn.addEventListener('click', () => { gate.hidden = false; refreshQueue(); });
+  $('#chGateClose', win).addEventListener('click', () => { gate.hidden = true; });
+
+  chatAmAdmin().then(ok => {
+    amAdmin = ok;
+    if (ok) { refreshQueue(); setInterval(refreshQueue, 30000); }
   });
 
   /* Stop polling when the window is gone, or a closed messenger keeps asking
@@ -2202,7 +2315,6 @@ function mountPaint(win) {
     if (rec && rec.el && rec.el.__chatSend) {
       await rec.el.__chatSend('', exportUnder(CHAT_MAX));
       btn.classList.remove('is-waiting');
-      toast('Sent to the room.');
     } else {
       toast('Could not reach the room.');
     }

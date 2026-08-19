@@ -755,6 +755,13 @@ CREDITS
       <span class="msn__state" id="chState"></span>
     </div>
 
+    <div class="msn__gate" id="chGate" hidden>
+      <div class="msn__gatebar">
+        <b>Drawings waiting for you</b>
+        <button class="ie__tb" id="chGateClose" type="button">Back to the room</button>
+      </div>
+      <div class="msn__gatelist" id="chGateList"></div>
+    </div>
     <div class="msn__body">
       <aside class="msn__list" id="chList">
         <p class="msn__listhead">In the pond <span id="chCount"></span></p>
@@ -766,6 +773,7 @@ CREDITS
     <div class="msn__tools">
       <span class="msn__emos" id="chEmos"></span>
       <button class="xp-btn xp-btn--sm" id="chDraw" type="button" title="Draw something and send it in here">Draw</button>
+      <button class="xp-btn xp-btn--sm chat__queue" id="chQueue" type="button" hidden>Waiting <b>0</b></button>
       <button class="xp-btn xp-btn--sm" id="chNudge" type="button" title="Shake everyone’s window">Nudge</button>
       <label class="msn__nick">as <input id="chNick" maxlength="18" placeholder="your name" autocomplete="off" spellcheck="false" /></label>
     </div>

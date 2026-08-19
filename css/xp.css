@@ -1007,7 +1007,7 @@ input, textarea{ cursor:text; }
 }
 
 /* ── Toad Messenger ──────────────────────────────────────────── */
-.msn { display:flex; flex-direction:column; height:100%; min-height:0; background:#fff; }
+.msn { position:relative; display:flex; flex-direction:column; height:100%; min-height:0; background:#fff; }
 
 .msn__head {
   flex:none; display:flex; align-items:center; gap:9px; padding:7px 9px;
@@ -1244,3 +1244,21 @@ input, textarea{ cursor:text; }
 .msn__line:hover .msn__flag, .msn__flag:focus { opacity:1; }
 .msn__flag:hover { color:#b3261e; }
 .msn__flag:disabled { color:#b3261e; opacity:1; cursor:default; }
+
+/* ── the gate: drawings waiting to be let into the room ─────── */
+.chat__queue.is-waiting { border-color:#c8a415; box-shadow:0 0 0 2px rgba(245,197,24,.35); font-weight:700; }
+.msn__gate { position:absolute; inset:0; z-index:4; background:#f7f8fa; display:flex; flex-direction:column; }
+.msn__gate[hidden] { display:none; }
+.msn__gatebar { display:flex; align-items:center; gap:8px; padding:6px 8px;
+                background:linear-gradient(#eaf3fd,#cfe3f8); border-bottom:1px solid #8fb4d9; }
+.msn__gatebar b { flex:1; font-size:12px; color:#12365e; }
+.msn__gatelist { flex:1; min-height:0; overflow-y:auto; padding:9px; display:flex;
+                 flex-direction:column; gap:9px; }
+.msn__gateempty { margin:0; padding:14px 6px; font-size:12px; color:#5d646e; text-align:center; }
+.msn__gatecard { display:flex; gap:9px; padding:8px; background:#fff;
+                 border:1px solid #cdd3da; border-radius:5px; }
+.msn__gatecard img { width:132px; height:88px; flex:none; object-fit:contain;
+                     background:#fff; border:1px solid #7c879a; }
+.msn__gateacts { display:flex; flex-direction:column; gap:5px; align-items:flex-start; justify-content:center; }
+.msn__gateacts span { font-size:12px; font-weight:700; color:#12365e;
+                      max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
