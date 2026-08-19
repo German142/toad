@@ -29,12 +29,12 @@ async function rpc(url, method, params) {
   return j.result;
 }
 
-/* Helius answers "how many hold this" in one call. Everything else has to
-   walk the token accounts, which most endpoints refuse outright -- so when
-   there is no key, the count is honestly reported as unknown rather than
-   guessed from the top twenty. */
+/* Whether a provider can answer "how many hold this" is decided by asking it,
+   not by looking at its hostname. The first version tested the URL for the
+   word helius, which would have quietly reported no holders for any other
+   indexed provider -- and reported a wrong capability for a proxy in front of
+   one. Ask; if it cannot, say so. */
 async function countHolders(url) {
-  if (!/helius/i.test(url)) return null;
   let page = 1, total = 0;
   while (page <= 20) {                       // 20 x 1000 is plenty, and bounded
     const r = await fetch(url, {
@@ -45,6 +45,7 @@ async function countHolders(url) {
     });
     if (!r.ok) return null;
     const j = await r.json();
+    if (j.error) return null;                 // provider does not index this
     const list = j?.result?.token_accounts;
     if (!Array.isArray(list) || !list.length) break;
     total += list.filter(a => Number(a.amount) > 0).length;
@@ -87,13 +88,13 @@ export default async function handler(req, res) {
       holders,                                   // null when no indexed key is configured
       top,
       topShare: +top.reduce((n, t) => n + (t.share || 0), 0).toFixed(2),
-      keyed: /helius/i.test(url),
+      keyed: url !== FALLBACK,
       at: new Date().toISOString(),
     });
   } catch (e) {
     /* A public endpoint rate-limits hard, and the window should say so rather
        than sit there empty pretending to load. */
     res.setHeader('Cache-Control', 'public, s-maxage=15');
-    return res.status(200).json({ error: String(e.message || e), keyed: /helius/i.test(url) });
+    return res.status(200).json({ error: String(e.message || e), keyed: url !== FALLBACK });
   }
 }
