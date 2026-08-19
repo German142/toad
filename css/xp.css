@@ -1315,3 +1315,10 @@ input, textarea{ cursor:text; }
   .term__row { flex-wrap:wrap; }
   .term__rowacts { width:100%; }
 }
+.term__hold { flex:none; padding:11px 12px 12px; border-bottom:1px solid #e3e6ea; }
+.term__grid--tight .term__cell b { font-size:15px; }
+.term__list--short { max-height:190px; }
+.term__row--tight { padding:4px 8px; }
+.term__bar2 { flex:1; min-width:60px; max-width:180px; height:6px; border-radius:3px;
+              background:#eef1f4; overflow:hidden; }
+.term__bar2 i { display:block; height:100%; background:#74c13b; }
