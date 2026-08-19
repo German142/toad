@@ -1262,3 +1262,14 @@ input, textarea{ cursor:text; }
 .msn__gateacts { display:flex; flex-direction:column; gap:5px; align-items:flex-start; justify-content:center; }
 .msn__gateacts span { font-size:12px; font-weight:700; color:#12365e;
                       max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* the desk: three shelves, one row of buttons per item */
+.msn__gatebar .ie__tb { font-size:11px; }
+.msn__gatebar .ie__tb.is-on { background:#fff; border-color:#7f9db9; font-weight:700; }
+.msn__gatebar .ie__tb span { color:#4a6a8c; font-weight:400; }
+.msn__gatebar #chGateClose { margin-left:auto; }
+.msn__gatecard q { font-size:12px; color:#3b4450; quotes:'\201C' '\201D';
+                   max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.msn__gateacts i { font-size:10.5px; color:#5d7a99; font-style:normal; }
+.msn__gaterow { display:flex; gap:5px; flex-wrap:wrap; margin-top:3px; }
+.xp-btn--danger { border-color:#b3261e; color:#b3261e; }
+.xp-btn--danger:hover { background:#fdecea; }
