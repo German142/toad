@@ -1,9 +1,9 @@
 /* ══════════════════════════════════════════════════════════════
    TOAD RUN
-   A full-screen 3-lane endless runner in Three.js. The plush toad
-   (the original, 1988) runs the pond road; the internet frog
-   (2005, seventeen years late) chases and never quite catches up —
-   until he does.
+   A full-screen 3-lane endless hopper in Three.js. The plush toad
+   (the original, 1988) hops three trails of stepping stones across
+   the pond; the internet frog (2005, seventeen years late) chases
+   and never quite catches up — until he does.
 
    Everything lives in this one module: scene, world recycling,
    obstacles, pills, power-ups, sound, quests, shop and UI. The
@@ -24,9 +24,12 @@ const SPEED_BASE = 10;          // units/s
 const SPEED_MAX = 23;
 const SPEED_GAIN = 0.055;       // per metre travelled
 
-const JUMP_VY = 8.8;
-const GRAVITY = -25;
-const SLAM_VY = -17;            // roll in mid-air = slam down
+/* real-toad ballistics: stronger gravity, faster launch, same apex —
+   the arc reads as weight instead of a balloon */
+const JUMP_VY = 10.3;           // the big leap (input) — apex ≈ 1.56
+const HOP_VY = 4.2;             // the idle hop — a toad never walks
+const GRAVITY = -34;
+const SLAM_VY = -21;            // roll in mid-air = slam down
 const LANE_SNAP = 11;           // lane-change speed, units/s
 const ROLL_TIME = 0.62;
 
@@ -165,7 +168,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 el.stage.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0xbfe3d0, 26, 118);
+scene.fog = new THREE.Fog(0xcfe6f5, 26, 118);
 
 /* low and close, over the toad's shoulder — the chase reads, the
    horizon sits in the upper third, the character fills the frame */
@@ -186,8 +189,8 @@ addEventListener('orientationchange', resize);
 resize();
 
 /* lights — bright hemisphere + one shadow-casting sun over the track */
-scene.add(new THREE.HemisphereLight(0xeafff2, 0x7aa06a, 1.15));
-const sun = new THREE.DirectionalLight(0xfff4d6, 1.35);
+scene.add(new THREE.HemisphereLight(0xd9ecff, 0x51829b, 1.1));   // blue sky above, water bounce below
+const sun = new THREE.DirectionalLight(0xffd9a8, 1.45);          // warm late-afternoon sun
 sun.position.set(14, 24, -10);
 sun.castShadow = true;
 /* phones get a lighter shadow map — the softness hides the difference */
@@ -214,10 +217,10 @@ function canvasTex(w, h, draw) {
 
 const skyTex = canvasTex(64, 512, (x, w, h) => {
   const g = x.createLinearGradient(0, 0, 0, h);
-  g.addColorStop(0, '#1f8468');
-  g.addColorStop(.42, '#5cb896');
-  g.addColorStop(.75, '#aadfc4');
-  g.addColorStop(1, '#d8efdc');
+  g.addColorStop(0, '#1d6fd0');     // zenith blue
+  g.addColorStop(.45, '#57a4e6');
+  g.addColorStop(.78, '#b2d8f4');
+  g.addColorStop(1, '#e6f2fa');     // horizon haze
   x.fillStyle = g; x.fillRect(0, 0, w, h);
 });
 
@@ -225,9 +228,39 @@ const cloudTex = canvasTex(256, 128, (x) => {
   x.fillStyle = 'rgba(255,255,255,.95)';
   const blob = (cx, cy, r) => { x.beginPath(); x.arc(cx, cy, r, 0, 7); x.fill(); };
   blob(70, 78, 34); blob(120, 62, 44); blob(175, 76, 36); blob(120, 88, 40);
-  x.fillStyle = 'rgba(214,240,228,.9)';
+  x.fillStyle = 'rgba(230,240,250,.92)';   // flat shaded cloud base
   x.fillRect(36, 96, 184, 14);
 });
+
+/* tileable ripple noise for the water — every blob is drawn 9× on a
+   3×3 grid of offsets so the texture repeats without seams */
+const waterBump = canvasTex(256, 256, (x, w, h) => {
+  x.fillStyle = '#808080'; x.fillRect(0, 0, w, h);
+  for (let i = 0; i < 240; i++) {
+    const px = Math.random() * w, py = Math.random() * h;
+    const r = 7 + Math.random() * 20;
+    const lum = Math.random() > .5 ? 255 : 0;
+    const a = .14 + Math.random() * .18;
+    const sx = 1.2 + Math.random() * 2;      // stretched — wind ripples, not bubbles
+    for (const dx of [-w, 0, w]) for (const dy of [-h, 0, h]) {
+      const g = x.createRadialGradient(0, 0, 0, 0, 0, r);
+      g.addColorStop(0, `rgba(${lum},${lum},${lum},${a})`);
+      g.addColorStop(1, 'rgba(128,128,128,0)');
+      x.save();
+      x.translate(px + dx, py + dy);
+      x.scale(sx, 1);
+      x.fillStyle = g;
+      x.beginPath(); x.arc(0, 0, r, 0, 7); x.fill();
+      x.restore();
+    }
+  }
+});
+waterBump.colorSpace = THREE.NoColorSpace;
+waterBump.wrapS = waterBump.wrapT = THREE.RepeatWrapping;
+waterBump.repeat.set(48, 48);                 // over the 400-unit pond: one tile ≈ 8.3 units
+const waterBumpNear = waterBump.clone();      // the shoal strip needs its own UV transform
+waterBumpNear.repeat.set(1, 38);              // 8.6 × 320 units — same tile size as the pond
+waterBumpNear.needsUpdate = true;
 
 const glowTex = canvasTex(128, 128, (x, w, h) => {
   const g = x.createRadialGradient(64, 64, 2, 64, 64, 62);
@@ -290,25 +323,26 @@ const powerTex = {
    MATERIALS — one shared set, flat pastel
    ───────────────────────────────────────────────────────────── */
 const M = {
-  path: new THREE.MeshLambertMaterial({ color: 0xe9e5d6 }),
-  pathLine: new THREE.MeshBasicMaterial({ color: 0xd8d2bd }),
-  grass: new THREE.MeshLambertMaterial({ color: 0x8cc873 }),
-  grassDark: new THREE.MeshLambertMaterial({ color: 0x76b562 }),
-  water: new THREE.MeshLambertMaterial({ color: 0x74b9d8 }),
+  /* phong + animated bump = moving sun glints on the surface */
+  water: new THREE.MeshPhongMaterial({ color: 0x2e6f9e, specular: 0x9fcce8, shininess: 90, bumpMap: waterBump, bumpScale: .11 }),
+  shallow: new THREE.MeshPhongMaterial({ color: 0x54a4ba, specular: 0xaad8e4, shininess: 70, bumpMap: waterBumpNear, bumpScale: .08 }),
+  /* flat shading = faceted rock faces that catch the light */
+  stone: new THREE.MeshStandardMaterial({ color: 0xa8a89a, roughness: .88, metalness: 0, flatShading: true }),
+  stoneDark: new THREE.MeshStandardMaterial({ color: 0x7e8676, roughness: .92, metalness: 0, flatShading: true }),
   lily: new THREE.MeshLambertMaterial({ color: 0x4fb223 }),
-  edge: new THREE.MeshBasicMaterial({ color: 0xf4fff2 }),
+  lilyDark: new THREE.MeshLambertMaterial({ color: 0x3d9a1a }),
+  lotus: new THREE.MeshLambertMaterial({ color: 0xe88ab8 }),
+  lotusCore: new THREE.MeshLambertMaterial({ color: 0xf2d25c }),
+  foam: new THREE.MeshBasicMaterial({ color: 0xeafcff, transparent: true, opacity: .55 }),
   trunk: new THREE.MeshLambertMaterial({ color: 0x8a6b4a }),
   leaf: new THREE.MeshLambertMaterial({ color: 0x5aa864 }),
   leafDark: new THREE.MeshLambertMaterial({ color: 0x458c52 }),
   reed: new THREE.MeshLambertMaterial({ color: 0x2f7d16 }),
   reedHead: new THREE.MeshLambertMaterial({ color: 0x6b4a2f }),
-  shroomCap: new THREE.MeshLambertMaterial({ color: 0xd8604f }),
-  shroomDot: new THREE.MeshLambertMaterial({ color: 0xf5efe2 }),
   hill: new THREE.MeshLambertMaterial({ color: 0x7fbe6a }),
-  skyline: new THREE.MeshLambertMaterial({ color: 0xa9cdbd, transparent: true, opacity: .8 }),
+  skyline: new THREE.MeshLambertMaterial({ color: 0xaac6dc, transparent: true, opacity: .8 }),
   log: new THREE.MeshLambertMaterial({ color: 0x9c7448 }),
   logEnd: new THREE.MeshLambertMaterial({ color: 0xc9a06c }),
-  crate: new THREE.MeshLambertMaterial({ color: 0xc59a5f }),
   candle: new THREE.MeshLambertMaterial({ color: 0x21c95e, emissive: 0x0a4d22 }),
   candleDark: new THREE.MeshLambertMaterial({ color: 0x158741 }),
   pole: new THREE.MeshLambertMaterial({ color: 0xb8b2a0 }),
@@ -324,7 +358,7 @@ const M = {
 /* ─────────────────────────────────────────────────────────────
    STATIC WORLD — sky, ground, path, edges
    ───────────────────────────────────────────────────────────── */
-scene.background = new THREE.Color(0xd8efdc);   // horizon tone behind the dome
+scene.background = new THREE.Color(0xe6f2fa);   // horizon tone behind the dome
 {
   const dome = new THREE.Mesh(
     new THREE.SphereGeometry(320, 24, 12),
@@ -333,34 +367,49 @@ scene.background = new THREE.Color(0xd8efdc);   // horizon tone behind the dome
   dome.position.y = -30;
   scene.add(dome);
 
-  const sunSpr = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xfff8e0, transparent: true, opacity: .9, fog: false, blending: THREE.AdditiveBlending }));
-  sunSpr.scale.set(60, 60, 1);
-  sunSpr.position.set(40, 78, -260);
-  scene.add(sunSpr);
+  /* the sun — a real orange disc (normal blending: additive over a
+     bright sky just bleaches to white) plus a soft warm halo */
+  const sunTex = canvasTex(128, 128, (x) => {
+    const g = x.createRadialGradient(64, 64, 8, 64, 64, 62);
+    g.addColorStop(0, '#ffc648');
+    g.addColorStop(.5, '#ff9a27');
+    g.addColorStop(.72, '#ff7d1e');
+    g.addColorStop(.8, 'rgba(255,118,26,.5)');
+    g.addColorStop(1, 'rgba(255,118,26,0)');
+    x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+  });
+  const sunDisc = new THREE.Sprite(new THREE.SpriteMaterial({ map: sunTex, transparent: true, fog: false }));
+  sunDisc.scale.set(34, 34, 1);
+  sunDisc.position.set(40, 78, -259);
+  scene.add(sunDisc);
+  const sunHalo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xff8c1a, transparent: true, opacity: .45, fog: false, blending: THREE.AdditiveBlending }));
+  sunHalo.scale.set(85, 85, 1);
+  sunHalo.position.set(40, 78, -260);
+  scene.add(sunHalo);
 
-  /* ground planes */
+  /* the pond — open water to every horizon */
   const g = new THREE.PlaneGeometry(400, 400);
-  const ground = new THREE.Mesh(g, M.grass);
+  const ground = new THREE.Mesh(g, M.water);
   ground.rotation.x = -Math.PI / 2;
   ground.position.set(0, -0.02, -120);
   ground.receiveShadow = true;
   scene.add(ground);
 
-  /* the path */
-  const path = new THREE.Mesh(new THREE.PlaneGeometry(8.2, 320), M.path);
-  path.rotation.x = -Math.PI / 2;
-  path.position.set(0, 0, -140);
-  path.receiveShadow = true;
-  scene.add(path);
+  /* the shoal — a paler shallow strip under the three stone trails */
+  const shoal = new THREE.Mesh(new THREE.PlaneGeometry(8.6, 320), M.shallow);
+  shoal.rotation.x = -Math.PI / 2;
+  shoal.position.set(0, -0.005, -140);
+  shoal.receiveShadow = true;
+  scene.add(shoal);
 
-  /* glowing lane edges */
+  /* foam lines where the shoal drops into deep water */
   for (const sx of [-4.35, 4.35]) {
-    const edge = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 320), M.edge);
+    const edge = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 320), M.foam);
     edge.rotation.x = -Math.PI / 2;
     edge.position.set(sx, 0.012, -140);
     scene.add(edge);
     const glow = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 320),
-      new THREE.MeshBasicMaterial({ map: glowTex, color: 0xdfffd2, transparent: true, opacity: .38, blending: THREE.AdditiveBlending, depthWrite: false }));
+      new THREE.MeshBasicMaterial({ map: glowTex, color: 0xcaf0ff, transparent: true, opacity: .3, blending: THREE.AdditiveBlending, depthWrite: false }));
     glow.rotation.x = -Math.PI / 2;
     glow.position.set(sx, 0.014, -140);
     scene.add(glow);
@@ -381,29 +430,42 @@ function scrolling(obj, span = SPAN, onRecycle = null) {
   return obj;
 }
 
-/* path dashes — cheap speed cue */
-for (let i = 0; i < 24; i++) {
-  const d = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 1.6), M.pathLine);
-  d.rotation.x = -Math.PI / 2;
-  d.position.set((i % 2) ? -1.1 : 1.1, 0.01, -i * 6.5);
-  scene.add(scrolling(d, 156));
+/* ─────────────────────────────────────────────────────────────
+   STEPPING STONES — the lanes themselves. One InstancedMesh, one
+   draw call. The layout repeats every STONE_PERIOD so the field
+   scrolls with a plain modulo instead of the scroller wrap (a
+   single long object can't wrap at KILL_Z without a visible gap).
+   ───────────────────────────────────────────────────────────── */
+const STONE_GAP = 2.5;
+const STONE_PERIOD = 150;                       // must be a multiple of STONE_GAP
+let stoneField;
+{
+  const perLane = Math.ceil((STONE_PERIOD * 2 + 36) / STONE_GAP);
+  const geo = new THREE.CylinderGeometry(.78, .98, .3, 7);
+  stoneField = new THREE.InstancedMesh(geo, M.stone, perLane * 3);
+  stoneField.castShadow = true;
+  stoneField.receiveShadow = true;
+  /* deterministic per-slot jitter, keyed mod one period, so the
+     wrap-around is invisible */
+  const jig = (i, s) => (Math.sin((i % (STONE_PERIOD / STONE_GAP)) * 12.9898 + s) * 43758.5453) % 1;
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sc = new THREE.Vector3();
+  let n = 0;
+  for (let l = 0; l < 3; l++) {
+    for (let i = 0; i < perLane; i++) {
+      v.set(LANE_X[l] + jig(i, l * 7 + 1) * .3, -0.13, 16 - i * STONE_GAP);
+      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), jig(i, l * 7 + 2) * Math.PI);
+      const s = .85 + Math.abs(jig(i, l * 7 + 3)) * .3;
+      sc.set(s, 1, s * (0.9 + Math.abs(jig(i, l * 7 + 4)) * .25));
+      m.compose(v, q, sc);
+      stoneField.setMatrixAt(n++, m);
+    }
+  }
+  scene.add(stoneField);
 }
 
 /* ─────────────────────────────────────────────────────────────
    SCENERY — pooled pastel props, recycled forever
    ───────────────────────────────────────────────────────────── */
-function makeTree(scale = 1) {
-  const g = new THREE.Group();
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(.22, .3, 1.6, 6), M.trunk);
-  trunk.position.y = .8;
-  const c1 = new THREE.Mesh(new THREE.ConeGeometry(1.5, 2.2, 7), M.leaf);
-  c1.position.y = 2.5;
-  const c2 = new THREE.Mesh(new THREE.ConeGeometry(1.1, 1.8, 7), M.leafDark);
-  c2.position.y = 3.6;
-  g.add(trunk, c1, c2);
-  g.scale.setScalar(scale);
-  return g;
-}
 function makeDome(scale = 1, mat = M.leafDark) {
   const m = new THREE.Mesh(new THREE.SphereGeometry(1.4, 10, 7, 0, Math.PI * 2, 0, Math.PI / 2), mat);
   m.scale.set(scale, scale * .8, scale);
@@ -422,48 +484,57 @@ function makeReeds() {
   }
   return g;
 }
-function makeShroom(scale = 1) {
+function makeLilyCluster() {
   const g = new THREE.Group();
-  const stem = new THREE.Mesh(new THREE.CylinderGeometry(.3, .4, .8, 8), M.shroomDot);
-  stem.position.y = .4;
-  const cap = new THREE.Mesh(new THREE.SphereGeometry(.85, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), M.shroomCap);
-  cap.position.y = .75;
-  cap.scale.y = .75;
-  g.add(stem, cap);
-  for (let i = 0; i < 3; i++) {
-    const dot = new THREE.Mesh(new THREE.SphereGeometry(.1, 6, 4), M.shroomDot);
-    const a = i * 2.1 + .4;
-    dot.position.set(Math.cos(a) * .5, .95, Math.sin(a) * .5);
-    g.add(dot);
-  }
-  g.scale.setScalar(scale);
-  return g;
-}
-function makePond() {
-  const g = new THREE.Group();
-  const w = new THREE.Mesh(new THREE.CircleGeometry(3.4, 18), M.water);
-  w.rotation.x = -Math.PI / 2;
-  w.position.y = .015;
-  w.scale.x = 1.6;
-  g.add(w);
-  for (let i = 0; i < 4; i++) {
-    const pad = new THREE.Mesh(new THREE.CircleGeometry(.4 + Math.random() * .3, 9, .5, 5.6), M.lily);
+  const n = 3 + (Math.random() * 3 | 0);
+  for (let i = 0; i < n; i++) {
+    const pad = new THREE.Mesh(new THREE.CircleGeometry(.4 + Math.random() * .35, 9, .5, 5.6),
+      Math.random() > .5 ? M.lily : M.lilyDark);
     pad.rotation.x = -Math.PI / 2;
-    pad.position.set((Math.random() - .5) * 4.5, .03, (Math.random() - .5) * 3);
+    pad.rotation.z = Math.random() * Math.PI * 2;
+    pad.position.set((Math.random() - .5) * 3.5, .03, (Math.random() - .5) * 2.5);
     g.add(pad);
   }
   return g;
 }
-function makeFence() {
-  const g = new THREE.Group();
-  for (let i = 0; i < 5; i++) {
-    const p = new THREE.Mesh(new THREE.BoxGeometry(.14, .9, .05), M.shroomDot);
-    p.position.set(i * .5, .45, 0);
-    g.add(p);
+function makeLotus() {
+  const g = makeLilyCluster();
+  const cx = (Math.random() - .5) * 2, cz = (Math.random() - .5) * 1.5;
+  for (let i = 0; i < 6; i++) {
+    const a = i / 6 * Math.PI * 2;
+    const petal = new THREE.Mesh(new THREE.ConeGeometry(.16, .55, 5), M.lotus);
+    petal.position.set(cx + Math.cos(a) * .2, .3, cz + Math.sin(a) * .2);
+    petal.rotation.set(Math.sin(a) * .55, 0, -Math.cos(a) * .55);
+    g.add(petal);
   }
-  const rail = new THREE.Mesh(new THREE.BoxGeometry(2.3, .1, .05), M.shroomDot);
-  rail.position.set(1, .62, 0);
-  g.add(rail);
+  const core = new THREE.Mesh(new THREE.SphereGeometry(.15, 8, 6), M.lotusCore);
+  core.position.set(cx, .38, cz);
+  g.add(core);
+  return g;
+}
+function makeDriftwood() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(.26, .34, 3.4, 8), M.log);
+  body.rotation.z = Math.PI / 2 + .12;
+  body.rotation.y = Math.random() * Math.PI;
+  body.position.y = .12;                      // half-sunk
+  const stub = new THREE.Mesh(new THREE.CylinderGeometry(.09, .13, .7, 5), M.trunk);
+  stub.position.set(.6, .45, 0);
+  stub.rotation.z = -.5;
+  const moss = new THREE.Mesh(new THREE.SphereGeometry(.2, 6, 4), M.leafDark);
+  moss.position.set(-.7, .32, 0);
+  g.add(body, stub, moss);
+  return g;
+}
+function makeIslet(scale = 1) {
+  const g = new THREE.Group();
+  const mud = new THREE.Mesh(new THREE.SphereGeometry(1.4, 10, 7, 0, Math.PI * 2, 0, Math.PI / 2), M.hill);
+  mud.scale.set(scale, scale * .35, scale);
+  g.add(mud);
+  const tuft = makeReeds();
+  tuft.scale.setScalar(Math.max(.7, scale * .6));
+  tuft.position.y = scale * .3;
+  g.add(tuft);
   return g;
 }
 function makeBillboard(tex) {
@@ -536,15 +607,15 @@ const SIDE_PROPS = [];
 {
   const rand = (a, b) => a + Math.random() * (b - a);
   const makers = [
-    () => makeTree(rand(.8, 1.5)),
-    () => makeTree(rand(.8, 1.2)),
-    () => makeDome(rand(1, 2.2), Math.random() > .5 ? M.leaf : M.leafDark),
     makeReeds,
-    () => makeShroom(rand(.7, 1.4)),
-    makePond,
-    makeFence,
+    makeLilyCluster,
+    () => makeIslet(rand(.9, 1.8)),
+    makeLotus,
+    makeDriftwood,
+    makeLilyCluster,
     makeReeds,
-    () => makeDome(rand(1, 1.6), M.hill),
+    makeLotus,
+    () => makeIslet(rand(.7, 1.2)),
   ];
   for (let i = 0; i < 34; i++) {
     const gm = castShadows(makers[i % makers.length]());
@@ -590,7 +661,7 @@ const SIDE_PROPS = [];
   const pg = new THREE.BufferGeometry();
   pg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   const sparks = new THREE.Points(pg, new THREE.PointsMaterial({
-    map: glowTex, color: 0xf2fff0, size: .32, transparent: true, opacity: .55,
+    map: glowTex, color: 0xeaf6ff, size: .24, transparent: true, opacity: .28,
     blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true,
   }));
   scene.add(sparks);
@@ -676,7 +747,6 @@ const memeTextures = [];
    CHARACTER SPRITES
    ───────────────────────────────────────────────────────────── */
 const FRAMES = ['run1', 'run2', 'run3', 'jump', 'fall', 'roll', 'hit', 'idle_front'];
-const RUN_CYCLE = ['run1', 'run2', 'run3', 'run2'];   // contact → pass → contact → pass
 const CHASER_FRAMES = ['alon_run1', 'alon_run2', 'alon_run3'];
 const CHASER_CYCLE = [0, 1, 2, 1];
 const baseBitmaps = {};       // name → ImageBitmap (for skin recolors)
@@ -834,10 +904,10 @@ function buildCharacters() {
 
 /* ─────────────────────────────────────────────────────────────
    OBSTACLES — pooled; four kinds
-   log    h .55  jump it
-   crate  h .95  jump it
-   candle tall   change lane (a green candle only goes up)
-   banner high   roll under it
+   log     h .55  driftwood — leap it
+   crate   h .95  mossy boulder — leap it (kind kept for the pools)
+   candle  tall   change lane (a green candle only goes up)
+   banner  high   roll under it
    ───────────────────────────────────────────────────────────── */
 function makeLog() {
   const g = new THREE.Group();
@@ -855,13 +925,17 @@ function makeLog() {
 }
 function makeCrate() {
   const g = new THREE.Group();
-  const box = new THREE.Mesh(new THREE.BoxGeometry(1.5, .95, .8), M.crate);
-  box.position.y = .475;
-  const lid = new THREE.Mesh(new THREE.BoxGeometry(1.56, .1, .86), M.wood);
-  lid.position.y = .95;
-  const brand = new THREE.Mesh(new THREE.BoxGeometry(.7, .5, .02), M.wood);
-  brand.position.set(0, .5, .41);
-  g.add(box, lid, brand);
+  const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(.78), M.stoneDark);
+  rock.scale.set(1.05, .62, .58);
+  rock.position.y = .47;
+  rock.rotation.y = .5;
+  const cap = new THREE.Mesh(new THREE.DodecahedronGeometry(.4), M.stone);
+  cap.scale.set(1, .6, .8);
+  cap.position.set(.35, .8, .1);
+  const moss = new THREE.Mesh(new THREE.SphereGeometry(.32, 7, 5), M.leafDark);
+  moss.scale.y = .5;
+  moss.position.set(-.35, .88, 0);
+  g.add(rock, cap, moss);
   g.userData.kind = 'crate'; g.userData.clearH = .95; g.userData.halfD = .45;
   return g;
 }
@@ -969,6 +1043,27 @@ function doBurst(x, y, z) {
   burst.material.opacity = .9;
 }
 
+/* landing ripples — a ring of pond water pushed out by each hop */
+const ripplePool = [];
+for (let i = 0; i < 6; i++) {
+  const r = new THREE.Mesh(new THREE.RingGeometry(.55, .78, 20),
+    new THREE.MeshBasicMaterial({ color: 0xdff6ff, transparent: true, opacity: 0, depthWrite: false }));
+  r.rotation.x = -Math.PI / 2;
+  r.position.y = .025;
+  r.visible = false;
+  r.userData.t = 1;
+  scene.add(r);
+  ripplePool.push(r);
+}
+function ripple(x, z, big = false) {
+  const r = ripplePool.find(q => q.userData.t >= 1);
+  if (!r) return;
+  r.position.x = x; r.position.z = z;
+  r.userData.t = 0;
+  r.userData.big = big;
+  r.visible = true;
+}
+
 /* ─────────────────────────────────────────────────────────────
    GAME STATE
    ───────────────────────────────────────────────────────────── */
@@ -982,7 +1077,7 @@ let skin = store.get('skin', 'classic');
 /* per-run */
 let dist = 0, score = 0, runPills = 0, closeCalls = 0, speed = SPEED_BASE;
 let lane = 1, laneX = 0, targetLane = 1, queuedLane = 0;
-let toadY = 0, vy = 0, grounded = true, rolling = 0, animT = 0;
+let toadY = 0, vy = 0, grounded = true, bigAir = false, rolling = 0, animT = 0;
 let dieT = 0, shakeT = 0, squash = 1, invulnBlink = 0;
 let power = null, powerT = 0, powerMax = 1;   // active power-up
 let spawnGap = 24, spawnAcc = 0, sincePower = 0, lastKind = '';
@@ -991,7 +1086,7 @@ function resetRun() {
   dist = 0; score = 0; runPills = 0; closeCalls = 0;
   speed = SPEED_BASE;
   lane = 1; targetLane = 1; queuedLane = 0; laneX = 0;
-  toadY = 0; vy = 0; grounded = true; rolling = 0;
+  toadY = 0; vy = 0; grounded = true; bigAir = false; rolling = 0;
   dieT = 0; shakeT = 0; squash = 1;
   power = null; powerT = 0; sincePower = 0;
   spawnGap = 24; spawnAcc = 12;
@@ -1133,16 +1228,27 @@ function goLane(dir) {
 }
 function doJump() {
   if (state !== STATE.PLAY) return;
-  if (!grounded) return;
+  /* the toad is airborne most of the time on his idle hops — a big
+     leap is allowed from the ground OR out of a small hop, otherwise
+     the input would almost never land */
+  if (!grounded && bigAir) return;
   vy = JUMP_VY;
   grounded = false;
+  bigAir = true;
   rolling = 0;
   squash = 1.14;
   Sound.jump();
 }
 function doRoll() {
   if (state !== STATE.PLAY) return;
-  if (!grounded) { vy = SLAM_VY; Sound.slam(); return; }   // air roll = slam
+  if (!grounded) {
+    vy = SLAM_VY;
+    /* from a small hop, tuck straight into the roll so the input
+       does what the player meant; from a big leap it's the slam */
+    if (!bigAir) rolling = ROLL_TIME;
+    Sound.slam();
+    return;
+  }
   rolling = ROLL_TIME;
   Sound.slam();
 }
@@ -1422,6 +1528,15 @@ function tick(dt) {
       s.onRecycle && s.onRecycle(s.obj);
     }
   }
+  /* the stepping stones are one periodic field — a modulo, not a wrap */
+  stoneField.position.z = (stoneField.position.z + worldSpeed * dt) % STONE_PERIOD;
+  /* water surface: the ripple pattern scrolls with the world (the pond
+     is still — WE move) plus a slow sideways drift from the wind */
+  const uvScroll = worldSpeed * dt * .12;
+  waterBump.offset.y = (waterBump.offset.y + uvScroll) % 1;
+  waterBumpNear.offset.y = (waterBumpNear.offset.y + uvScroll) % 1;
+  waterBump.offset.x = (waterBump.offset.x + dt * .012) % 1;
+  waterBumpNear.offset.x = (waterBumpNear.offset.x + dt * .012) % 1;
   /* clouds drift on their own clock */
   for (const p of SIDE_PROPS) {
     if (p.userData && p.userData.cloud) {
@@ -1473,17 +1588,25 @@ function tick(dt) {
     else laneX += Math.sign(dx) * step;
     lane = targetLane;
 
-    /* vertical — gravity eases near the apex so the jump hangs a beat
-       instead of tracing a harsh triangle */
+    /* vertical — a pure parabola. No apex ease, no float: gravity is
+       gravity, and the body language does the rest */
     if (!grounded) {
-      vy += GRAVITY * (Math.abs(vy) < 2.2 ? .5 : 1) * dt;
+      vy += GRAVITY * dt;
       toadY += vy * dt;
       if (toadY <= 0) {
-        toadY = 0; vy = 0; grounded = true;
-        squash = .8;
+        const hard = bigAir || vy < -12;
+        toadY = 0; vy = 0; grounded = true; bigAir = false;
+        squash = hard ? .72 : .9;
+        ripple(laneX, 0, hard);
       }
     }
     if (rolling > 0) rolling -= dt;
+    /* auto-hop — a toad never walks. Grounded and not rolling means
+       the next small hop starts immediately */
+    if (grounded && rolling <= 0) {
+      vy = HOP_VY;
+      grounded = false;
+    }
 
     /* power-up timer */
     if (power) {
@@ -1579,13 +1702,13 @@ function tick(dt) {
     el.score.textContent = Math.round(score);
     el.dist.textContent = Math.round(dist) + 'm';
 
-    /* animation state — a 4-step cycle (contact, pass, contact, pass)
-       whose cadence rises with speed */
+    /* animation state — the toad is a hopper now: rising shows the
+       jump frame, falling shows the fall frame, every single hop */
     animT += dt * (.8 + speed / SPEED_BASE * .55);
     let frame;
     if (rolling > 0) frame = 'roll';
-    else if (!grounded) frame = vy > .5 ? 'jump' : 'fall';
-    else frame = RUN_CYCLE[(animT * 9 | 0) % 4];
+    else if (!grounded) frame = vy > (bigAir ? .5 : 0) ? 'jump' : 'fall';
+    else frame = 'jump';   // the single tick between landing and the next hop
     setToadFrame(frame);
   }
 
@@ -1603,18 +1726,24 @@ function tick(dt) {
   /* ── toad transform ── */
   let bob = 0;
   if (state === STATE.MENU || state === STATE.OVER) bob = Math.sin(performance.now() * .002) * .05;
-  /* stride bounce: two beats per run cycle, synced to the leg frames */
-  else if (state === STATE.PLAY && grounded && rolling <= 0) bob = Math.abs(Math.sin(animT * 9 * Math.PI / 2)) * .07;
+  /* no stride bounce any more — the hops ARE the bounce */
   toad.position.x = laneX;
   toad.position.y = toadY + bob;
-  squash += (1 - squash) * Math.min(1, dt * 10);
-  const sy = rolling > 0 ? .58 : squash;
-  const sx = rolling > 0 ? 1.18 : (2 - squash) * .5 + .5;
+  squash += (1 - squash) * Math.min(1, dt * 12);
+  /* squash & stretch, the animator's gravity: fast vertical motion
+     elongates the body, landings flatten it, the apex relaxes to 1 */
+  const stretch = (!grounded && rolling <= 0) ? Math.min(1.24, 1 + Math.abs(vy) * .02) : 1;
+  const sy = rolling > 0 ? .58 : squash * stretch;
+  const sx = rolling > 0 ? 1.18 : ((2 - squash) * .5 + .5) / Math.sqrt(stretch);
   toadSprite.scale.set(sx, sy, 1);
   toadSprite.position.y = TOAD_H / 2 * sy;
   if (state === STATE.PLAY) {
-    toad.rotation.z = (laneX - LANE_X[targetLane]) * .1 + (grounded ? 0 : -vy * .012);
-  }
+    /* lean into lane changes only — rolling the sprite with vy made
+       every jump look like a sideways stumble */
+    toad.rotation.z = (laneX - LANE_X[targetLane]) * .12;
+    /* pitch: tip back on the way up, nose over on the way down */
+    toadSprite.rotation.x = (grounded || rolling > 0) ? 0 : vy * .011;
+  } else if (toadSprite.rotation.x !== 0) toadSprite.rotation.x = 0;
   toadShadow.material.opacity = Math.max(.15, .8 - toadY * .28);
   toadShadow.scale.setScalar(Math.max(.5, 1 - toadY * .16));
   if (power === 'star') {
@@ -1627,7 +1756,8 @@ function tick(dt) {
     frog.position.x += (laneX - frog.position.x) * dt * 3.2;
     const chase = 3.35 + Math.sin(performance.now() * .0011) * .3;
     frog.position.z += (chase - frog.position.z) * dt * 2;
-    frog.position.y = Math.abs(Math.sin(animT * 9 * Math.PI / 2 + 1.1)) * .12;
+    /* he hops too — same cadence, half a beat behind, higher arc */
+    frog.position.y = Math.abs(Math.sin(animT * 9 * Math.PI / 2 + 1.1)) * .3;
     frog.rotation.z = Math.sin(animT * 9 * Math.PI / 2 + 1.1) * .045;
     const ci = CHASER_CYCLE[(animT * 9 | 0) % 4];
     if (ci !== frogFrame) { frogFrame = ci; setFrogFrame(ci); }
@@ -1647,6 +1777,18 @@ function tick(dt) {
     }
     burst.geometry.attributes.position.needsUpdate = true;
     burst.material.opacity = Math.max(0, .9 - burstT);
+  }
+
+  /* ── landing ripples — expand, fade, and drift back with the water ── */
+  for (const r of ripplePool) {
+    if (r.userData.t >= 1) continue;
+    r.position.z += worldSpeed * dt;
+    r.userData.t += dt * (r.userData.big ? 1.6 : 2.4);
+    const t = Math.min(1, r.userData.t);
+    const s = (r.userData.big ? .9 : .5) + t * (r.userData.big ? 2.6 : 1.4);
+    r.scale.setScalar(s);
+    r.material.opacity = (1 - t) * (r.userData.big ? .55 : .4);
+    if (t >= 1) r.visible = false;
   }
 
   /* ── camera ── */
