@@ -572,6 +572,7 @@ function mountGameChat(host) {
 
   function line(row) {
     const l = document.createElement('p');
+    l.dataset.id = row.id;
     l.className = 'gchat__line' + (row.is_bot ? ' is-toad' : '') + (!row.is_bot && row.who === mine ? ' is-me' : '');
     const face = row.is_bot ? '/assets/brand/logo.png' : faces[row.who];
     if (face) {
@@ -600,6 +601,19 @@ function mountGameChat(host) {
          works from ids, so keep it fed. */
       const ids  = await chatFetchIds();
       const rows = await chatFetchThese(ids.filter(id => !seen.has(id)));
+      const alive = new Set(ids);
+      /* An empty list means the room really is empty -- a failed fetch never gets
+         this far, it throws first. So nothing is protected and everything goes. */
+      const oldest = ids.length ? Math.min(...ids) : -Infinity;
+      [...log.querySelectorAll('.gchat__line[data-id]')].forEach(el => {
+        const id = Number(el.dataset.id);
+        /* The guard is about the edge of the window we asked for, not the top
+           of it: only sixty ids come back, so anything older than the oldest
+           of them is simply out of view and must be left alone. Guarding
+           against the newest instead -- as this did at first -- exempted
+           exactly the case that matters, a message taken down moments ago. */
+        if (!alive.has(id) && id >= oldest) { el.remove(); seen.delete(id); }
+      });
       if (rows.some(r => !r.is_bot && !faces[r.who])) faces = await chatFaces();
       rows.forEach(r => {
         lastId = Math.max(lastId, r.id);
@@ -1204,16 +1218,27 @@ async function galleryFetch(order) {
    about it. Messages are read by polling rather than a socket: it needs no
    library, no second origin in the security policy, and at this size the
    difference is invisible. */
-const CHAT_URL  = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/toad_chat_public';
-const CHAT_AVA  = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/toad_avatars';
+/* A browser whose token starts with probe- is a test, and reads a parallel
+   room. Visitors and tests can then run against the same database without
+   ever appearing in each other's window -- which is what happened once, in
+   front of a real visitor. Nothing about this is reachable by choice: the
+   token decides, and a visitor's token never starts that way. */
+const IS_PROBE = (() => { try { return (localStorage.getItem(VOTER_KEY) || '').startsWith('probe-'); }
+                          catch (e) { return false; } })();
+const ROOM = IS_PROBE ? '_probe' : '';
+const SB_REST  = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/';
+const CHAT_URL  = SB_REST + (IS_PROBE ? 'toad_chat_probe' : 'toad_chat_public');
+const CHAT_AVA  = SB_REST + (IS_PROBE ? 'toad_avatars_probe' : 'toad_avatars');
 const CHAT_ME   = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_whoami';
 const CHAT_SETA = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_set_avatar';
 const CHAT_HERE = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_here';
 const CHAT_FLAG = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_chat_report';
 const CHAT_ADMIN = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_is_admin';
-const CHAT_QUEUE = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_pending';
-const CHAT_MOD   = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_moderate';
-const CHAT_WHOS = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/toad_online';
+const CHAT_QUEUE = SB_REST + 'rpc/toad_moderation';
+const CHAT_MOD   = SB_REST + 'rpc/toad_moderate';
+const WALL_MOD   = SB_REST + 'rpc/toad_gallery_moderate';
+const CHAT_BAN   = SB_REST + 'rpc/toad_ban_for';
+const CHAT_WHOS = SB_REST + (IS_PROBE ? 'toad_online_probe' : 'toad_online');
 const CHAT_CFG  = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/toad_chat_config';
 const CHAT_RPC  = 'https://cnpkiasoianvabctmvym.supabase.co/rest/v1/rpc/toad_say';
 const NICK_KEY  = 'toados.nick';
@@ -1302,6 +1327,18 @@ async function chatPending() {
 async function chatModerate(id, allow) {
   const r = await fetch(CHAT_MOD, { method: 'POST', headers: GAL_HEAD,
     body: JSON.stringify({ msg: id, speaker: voterToken(), allow }) });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+async function wallModerate(id, show) {
+  const r = await fetch(WALL_MOD, { method: 'POST', headers: GAL_HEAD,
+    body: JSON.stringify({ pic: id, speaker: voterToken(), show }) });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+async function chatBanFor(id) {
+  const r = await fetch(CHAT_BAN, { method: 'POST', headers: GAL_HEAD,
+    body: JSON.stringify({ msg: id, speaker: voterToken() }) });
   if (!r.ok) throw new Error(await r.text());
   return r.json();
 }
@@ -1505,6 +1542,7 @@ function mountChat(win) {
       return;
     }
     const l = document.createElement('p');
+    l.dataset.id = row.id;                    // so a message that goes away can be taken away
     l.className = 'msn__line'
       + (row.is_bot ? ' is-toad' : '')
       + (!row.is_bot && row.who === mine ? ' is-me' : '');
@@ -1606,6 +1644,25 @@ function mountChat(win) {
       if (first) { mine = await chatWhoAmI(); faces = await chatFaces(); }
       const ids  = await chatFetchIds();
       const rows = await chatFetchThese(ids.filter(id => !seen.has(id)));
+
+      /* A message that was reported away, refused, or deleted stops being in
+         that list. An open window used to keep showing it until somebody
+         reloaded, which meant a taken-down message stayed up for whoever was
+         already looking -- the one place it most needed to go. */
+      const alive = new Set(ids);
+      /* An empty list means the room really is empty -- a failed fetch never gets
+         this far, it throws first. So nothing is protected and everything goes. */
+      const oldest = ids.length ? Math.min(...ids) : -Infinity;
+      $$('.msn__line[data-id]', log).forEach(el => {
+        const id = Number(el.dataset.id);
+        /* The guard is about the edge of the window we asked for, not the top
+           of it: only sixty ids come back, so anything older than the oldest
+           of them is simply out of view and must be left alone. Guarding
+           against the newest instead -- as this did at first -- exempted
+           exactly the case that matters, a message taken down moments ago. */
+        if (!alive.has(id) && id >= oldest) { el.remove(); seen.delete(id); }
+      });
+
       /* Whatever this window has shown, the corner need not announce. */
       rows.forEach(r => { TOASTER.lastId = Math.max(TOASTER.lastId, r.id); });
       /* A face that arrives after its owner has spoken should still show up,
@@ -1693,59 +1750,128 @@ function mountChat(win) {
   const gate = $('#chGate', win), gateList = $('#chGateList', win), queueBtn = $('#chQueue', win);
   let amAdmin = false;
 
-  async function refreshQueue() {
-    if (!amAdmin) return;
-    let rows = [];
-    try { rows = await chatPending(); } catch (e) { return; }
+  let deskTab = 'waiting', desk = { waiting: [], room: [], wall: [] };
+
+  const when = iso => {
+    const d = new Date(iso);
+    return isNaN(d) ? '' : d.toLocaleString(undefined,
+      { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  };
+
+  function card({ image, title, meta, note, actions }) {
+    const el = document.createElement('div');
+    el.className = 'msn__gatecard';
+    if (image) {
+      const img = document.createElement('img');
+      img.src = image; img.alt = '';            // src, never innerHTML
+      el.appendChild(img);
+    }
+    const col = document.createElement('div');
+    col.className = 'msn__gateacts';
+    const who = document.createElement('span');
+    who.textContent = title;                    // textContent: a stranger's text
+    col.appendChild(who);
+    if (note) {
+      const n = document.createElement('q');
+      n.textContent = note;
+      col.appendChild(n);
+    }
+    const m = document.createElement('i');
+    m.textContent = meta;
+    col.appendChild(m);
+    const row = document.createElement('div');
+    row.className = 'msn__gaterow';
+    actions.forEach(([label, cls, fn]) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'xp-btn xp-btn--sm' + (cls ? ' ' + cls : '');
+      b.textContent = label;
+      b.addEventListener('click', async () => {
+        [...row.children].forEach(x => { x.disabled = true; });
+        try { await fn(); await refreshQueue(); }
+        catch (e) { toast('That did not go through.'); [...row.children].forEach(x => { x.disabled = false; }); }
+      });
+      row.appendChild(b);
+    });
+    col.appendChild(row);
+    el.appendChild(col);
+    return el;
+  }
+
+  function drawDesk() {
+    const counts = { waiting: desk.waiting.length, room: desk.room.length, wall: desk.wall.length };
+    $('#chTabWait', win).querySelector('span').textContent = counts.waiting;
+    $('#chTabRoom', win).querySelector('span').textContent = counts.room;
+    $('#chTabWall', win).querySelector('span').textContent = counts.wall;
+    ['Wait', 'Room', 'Wall'].forEach((k, i) =>
+      $('#chTab' + k, win).classList.toggle('is-on', ['waiting', 'room', 'wall'][i] === deskTab));
+
+    const total = counts.waiting + counts.room;      // the wall does not nag; the room does
     queueBtn.hidden = false;
-    queueBtn.querySelector('b').textContent = rows.length;
-    queueBtn.classList.toggle('is-waiting', rows.length > 0);
+    queueBtn.querySelector('b').textContent = total;
+    queueBtn.classList.toggle('is-waiting', total > 0);
 
     gateList.innerHTML = '';
+    const rows = desk[deskTab];
     if (!rows.length) {
       const p = document.createElement('p');
       p.className = 'msn__gateempty';
-      p.textContent = 'Nothing waiting. Drawings appear here before anyone else can see them.';
+      p.textContent = deskTab === 'waiting'
+        ? 'Nothing waiting. Drawings appear here before anyone else can see them.'
+        : 'Nothing has been reported here.';
       gateList.appendChild(p);
       return;
     }
+
     rows.forEach(row => {
-      const card = document.createElement('div');
-      card.className = 'msn__gatecard';
-
-      const img = document.createElement('img');
-      img.src = row.image; img.alt = '';        // src, never innerHTML
-
-      const who = document.createElement('span');
-      who.textContent = row.nick;               // textContent: a stranger's text
-
-      const yes = document.createElement('button');
-      yes.type = 'button'; yes.className = 'xp-btn xp-btn--sm xp-btn--go'; yes.textContent = 'Let it in';
-      const no = document.createElement('button');
-      no.type = 'button'; no.className = 'xp-btn xp-btn--sm'; no.textContent = 'Refuse';
-
-      const decide = async allow => {
-        yes.disabled = no.disabled = true;
-        try {
-          await chatModerate(row.id, allow);
-          toast(allow ? 'Let in — it is in the room now.' : 'Refused. It stays out of sight.');
-          await refreshQueue();
-          if (allow) await poll(false);       // the two-step fetch finds it wherever it sits
-        } catch (e) {
-          toast('That did not go through.');
-          yes.disabled = no.disabled = false;
-        }
-      };
-      yes.addEventListener('click', () => decide(true));
-      no.addEventListener('click', () => decide(false));
-
-      const acts = document.createElement('div');
-      acts.className = 'msn__gateacts';
-      acts.append(who, yes, no);
-      card.append(img, acts);
-      gateList.appendChild(card);
+      if (deskTab === 'waiting') {
+        gateList.appendChild(card({
+          image: row.image, title: row.nick, meta: when(row.created_at),
+          actions: [
+            ['Let it in', 'xp-btn--go', () => chatModerate(row.id, true).then(() => poll(false))],
+            ['Refuse', '', () => chatModerate(row.id, false)],
+            ['Ban them', 'xp-btn--danger', () => {
+              if (!confirm('Ban whoever sent this?\n\nEverything they have written goes out of sight too.')) return;
+              return chatBanFor(row.id);
+            }],
+          ],
+        }));
+      } else if (deskTab === 'room') {
+        gateList.appendChild(card({
+          image: row.image || null, title: row.nick,
+          note: row.body || (row.image ? 'a drawing' : ''),
+          meta: `${row.reports} report${row.reports === 1 ? '' : 's'} \u00b7 ${row.hidden ? 'taken down' : 'still up'} \u00b7 ${when(row.created_at)}`,
+          actions: row.hidden
+            ? [['Put it back', 'xp-btn--go', () => chatModerate(row.id, true).then(() => poll(false))],
+               ['Ban them', 'xp-btn--danger', () => {
+                 if (!confirm('Ban whoever sent this?')) return;
+                 return chatBanFor(row.id);
+               }]]
+            : [['Take it down', '', () => chatModerate(row.id, false)],
+               ['Clear the reports', 'xp-btn--go', () => chatModerate(row.id, true).then(() => poll(false))]],
+        }));
+      } else {
+        gateList.appendChild(card({
+          image: row.image, title: row.name,
+          meta: `${row.reports} report${row.reports === 1 ? '' : 's'} \u00b7 ${row.hidden ? 'taken down' : 'still up'} \u00b7 ${when(row.created_at)}`,
+          actions: row.hidden
+            ? [['Put it back', 'xp-btn--go', () => wallModerate(row.id, true)]]
+            : [['Take it down', '', () => wallModerate(row.id, false)],
+               ['Clear the reports', 'xp-btn--go', () => wallModerate(row.id, true)]],
+        }));
+      }
     });
   }
+
+  async function refreshQueue() {
+    if (!amAdmin) return;
+    try { desk = await chatPending(); } catch (e) { return; }
+    drawDesk();
+  }
+
+  ['Wait:waiting', 'Room:room', 'Wall:wall'].forEach(pair => {
+    const [k, name] = pair.split(':');
+    $('#chTab' + k, win).addEventListener('click', () => { deskTab = name; drawDesk(); });
+  });
 
   queueBtn.addEventListener('click', () => { gate.hidden = false; refreshQueue(); });
   $('#chGateClose', win).addEventListener('click', () => { gate.hidden = true; });
