@@ -227,3 +227,62 @@ body {
   .xpb--play { padding: 13px 44px; }
   .over__stats div { min-width: 30%; padding: 7px 6px; }
 }
+
+/* ── coming soon (prod) — blurred game art, crisp XP card ────── */
+/* #scrSoon is CSS-gated (not [hidden]) so the head script can flip
+   it on before first paint via .is-soon on <html>. */
+#scrSoon { display: none; }
+.is-soon #scrSoon { display: flex; }
+.is-soon .scr--load { display: none !important; }
+.is-soon .corner { display: none; }
+.scr--soon { z-index: 40; background: #06120c; overflow: hidden; }
+
+/* one frame of the chase, softly blurred, behind the card */
+.soon__scene { position: absolute; inset: -16px; }
+.soon__bg {
+  width: 100%; height: 100%; object-fit: cover;
+  filter: blur(6px) saturate(1.05) brightness(.82);
+}
+.soon__vig {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(4, 16, 9, .55) 100%);
+}
+
+/* the crisp card in front */
+.soon__card {
+  position: relative; z-index: 2; text-align: center;
+  padding: 26px 30px; max-width: min(440px, 92vw);
+}
+.soon__logo {
+  width: 84px; height: 84px; border-radius: 13px;
+  box-shadow: 0 6px 22px rgba(0, 10, 4, .55);
+}
+.soon__title { color: #fff; font-size: 46px; letter-spacing: 4px; margin-top: 12px; font-weight: 700; text-shadow: 0 2px 0 #0b2a14, 0 0 18px rgba(0, 0, 0, .5); }
+.soon__title span { color: #7ade46; }
+.soon__sub { color: #9fc4ab; font-size: 12px; letter-spacing: 3px; margin-top: 4px; text-shadow: 0 1px 2px #0b2a14; }
+.soon__badge {
+  display: inline-block; margin-top: 18px; padding: 7px 14px; border-radius: 6px;
+  font-size: 13px; font-weight: 700; letter-spacing: 2px; color: #3a2c00;
+  background: linear-gradient(180deg, #ffe27a, #f5c33b); border: 1px solid #b8a548;
+  box-shadow: 0 3px 10px rgba(0, 10, 4, .45);
+}
+.soon__msg {
+  margin-top: 14px; color: #eaf7ea; font-size: 14px; line-height: 1.55;
+  text-shadow: 0 1px 3px #0b2a14;
+}
+.soon__bar {
+  width: 220px; height: 14px; margin: 22px auto 0; padding: 2px;
+  border: 1px solid #4a5a50; border-radius: 8px; overflow: hidden;
+  background: rgba(6, 20, 12, .5);
+}
+.soon__bar i {
+  display: block; width: 34%; height: 100%; border-radius: 3px;
+  background: linear-gradient(90deg, #39c25c, #a8ff1a);
+  animation: soonScan 1.5s ease-in-out infinite alternate;
+}
+@keyframes soonScan { from { transform: translateX(-12%); } to { transform: translateX(206%); } }
+#btnSoonQuit { margin-top: 22px; }
+
+@media (max-width: 560px) {
+  .soon__title { font-size: 38px; }
+}

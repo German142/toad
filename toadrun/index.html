@@ -21,6 +21,22 @@
     document.head.appendChild(b);
   }
 })();
+
+/* Dev gate — everyone sees the "under development" teaser by default,
+   prod and localhost alike. The real game only boots on a local host
+   when the URL carries ?dev=1, either on this page itself
+   (http://127.0.0.1:5500/toadrun/?dev=1) or on the ToadOS desktop that
+   frames it (http://127.0.0.1:5500/index.html?dev=1). Decided here,
+   before first paint, so the teaser never flashes the loading screen. */
+window.TR_DEV = (function () {
+  if (!/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) return false;
+  var dev = /[?&]dev(=|&|$)/;
+  if (dev.test(location.search)) return true;
+  try {
+    return window.parent !== window && dev.test(window.parent.location.search);
+  } catch (e) { return false; }
+})();
+if (!window.TR_DEV) document.documentElement.classList.add('is-soon');
 </script>
 
 <link rel="icon" type="image/png" sizes="32x32" href="assets/icon-32.png" />
@@ -139,6 +155,25 @@
     </div>
   </div>
 
+  <!-- ── coming soon — what everyone but a ?dev=1 local host sees.
+       One frame of the chase, softly blurred, with a crisp XP-style
+       card on top. Gated by .is-soon on <html>. ─────────────────── -->
+  <div class="scr scr--soon" id="scrSoon">
+    <div class="soon__scene" aria-hidden="true">
+      <img class="soon__bg" src="assets/soon_bg.jpg" alt="" />
+      <div class="soon__vig"></div>
+    </div>
+    <div class="soon__card">
+      <img class="soon__logo" src="assets/icon-192.png" alt="" />
+      <h1 class="soon__title">TOAD <span>RUN</span></h1>
+      <p class="soon__sub">EL TOAD PEPE · SINCE 1988</p>
+      <p class="soon__badge">🚧 UNDER DEVELOPMENT</p>
+      <p class="soon__msg">The game is still in development. El Toad is warming up for the big chase. Check back soon, fren.</p>
+      <div class="soon__bar"><i></i></div>
+      <button class="xpb" id="btnSoonQuit">⏻ BACK TO DESKTOP</button>
+    </div>
+  </div>
+
   <!-- ── corner controls ─────────────────────────────────────── -->
   <div class="corner">
     <button class="corner__btn" id="btnSfx" aria-label="Toggle sound">🔊</button>
@@ -148,6 +183,23 @@
   <div class="toast" id="toast" hidden></div>
 </div>
 
-<script type="module" src="game.js"></script>
+<script>
+/* Dev boots the real game; prod only wires the teaser's exit button —
+   game.js (and the whole WebGL scene) never loads there. */
+if (window.TR_DEV) {
+  var trBoot = document.createElement('script');
+  trBoot.type = 'module';
+  trBoot.src = 'game.js';
+  document.body.appendChild(trBoot);
+} else {
+  document.getElementById('btnSoonQuit').addEventListener('click', function () {
+    if (window.parent !== window) {
+      window.parent.postMessage({ type: 'toadrun:quit' }, location.origin);
+    } else {
+      location.href = '/';
+    }
+  });
+}
+</script>
 </body>
 </html>

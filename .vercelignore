@@ -3,3 +3,11 @@
 # source image and the lockfile would otherwise sit there for anyone to fetch.
 # Everything else in this repo IS the site.
 _tools/
+
+# The game itself stays off production while /toadrun/ shows the
+# "under development" teaser (the page's dev gate never loads game.js
+# in prod, and this keeps the engine from being fetchable by URL).
+# The teaser still needs style.css and assets/, so only the engine goes.
+# Delete these two lines when the game launches.
+toadrun/game.js
+toadrun/lib/
